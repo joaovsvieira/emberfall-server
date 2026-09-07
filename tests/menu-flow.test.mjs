@@ -20,6 +20,7 @@ test('menu return resets solo, cooperative and PvP scenes immediately, including
 test('chapter I victory exposes advance, restart and menu; offline online sessions cannot restart as solo',()=>{
  const s=scene();s.session='solo';s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'next');assert.equal(element('modal-secondary').classList.contains('hidden'),false);assert.equal(element('modal-menu').classList.contains('hidden'),false);
  let chapter;s.startGame=id=>chapter=id;s.performModalAction('next');assert.equal(chapter,2);
- s.world=new World(2);s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'restart');
+ s.world=new World(2);s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'next');s.performModalAction('next');assert.equal(chapter,3);assert.equal(element('modal-primary').textContent,'IR PARA O CAPÍTULO III');
+ s.world=new World(3);s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'restart');assert.equal(element('modal-secondary').classList.contains('hidden'),true);
  s.session='online';s.net={connected:false};chapter=null;s.restart();assert.equal(chapter,null);
 });

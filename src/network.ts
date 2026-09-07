@@ -26,7 +26,7 @@ export class Multiplayer {
      room.onMessage('session-ended',(s:any)=>{if(current()){this.receive(s);this.onSessionEnd(s);}});
      room.onMessage('lobby',(value:any)=>{if(!current())return;this.lobby=value;this.onLobby(value);});
      room.onMessage('snapshot',(value:any)=>{if(current())this.receive(value);});
-     room.onMessage('events',(events:GameEvent[])=>{if(current())this.onEvents(events.filter(e=>!(e.playerId===this.id&&['jump','dash','slash','solar','nova','fireball','inferno'].includes(e.type))));});
+     room.onMessage('events',(events:GameEvent[])=>{if(current())this.onEvents(events.filter(e=>!(e.playerId===this.id&&['jump','dash','slash','solar','nova','fireball','inferno','arrow','lightBolt','shield','healingWave','arrowRain'].includes(e.type))));});
      room.onMessage('notice',(value:string)=>{if(current())this.onNotice(value);});
      room.onMessage('pong',(value:number)=>{if(current())this.ping=Math.round(performance.now()-value);});
      room.onDrop(()=>{if(!current())return;this.connected=false;this.pending=[];this.onConnection('reconnecting');});
@@ -45,7 +45,7 @@ export class Multiplayer {
    if(own){this.predictor=new World(s.chapter??1);this.predictor.mode=s.mode??'coop';this.predictor.predicting=true;this.predictor.status=s.status;this.predictor.players=s.players.map((p:any)=>({...p}));this.predictor.player=this.predictor.players.find(p=>p.id===this.id)!;this.predictor.time=s.time;this.predictor.bossActive=s.bossActive;this.predictor.enemies=[];for(const packet of this.pending)this.predict(packet.input,false);}
    this.onSnapshot(s);
  }
- predict(input:Input,emit:boolean){if(!this.predictor.player)return;this.predictor.time+=1/60;this.predictor.stepPlayer(1/60,input);const events=this.predictor.events.splice(0);this.predictor.projectiles=[];if(emit)this.onEvents(events.filter(e=>['jump','dash','slash','solar','nova','fireball','inferno'].includes(e.type)));}
+ predict(input:Input,emit:boolean){if(!this.predictor.player)return;this.predictor.time+=1/60;this.predictor.stepPlayer(1/60,input);const events=this.predictor.events.splice(0);this.predictor.projectiles=[];if(emit)this.onEvents(events.filter(e=>['jump','dash','slash','solar','nova','fireball','inferno','arrow','lightBolt','shield','healingWave','arrowRain'].includes(e.type)));}
  step(input:Input){
    if(!this.room||!this.connected)return;
    if(performance.now()-this.lastPing>1500){this.lastPing=performance.now();this.room.send('ping',this.lastPing);}

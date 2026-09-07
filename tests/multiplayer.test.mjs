@@ -39,7 +39,6 @@ test('two real WebSocket clients share lobby, movement, combat, reconnection and
   assert.match(a.roomId,/^[A-Z2-9]{6}$/);
   const b=await new Client('http://127.0.0.1:2575').joinById(a.roomId,{name:'Companheiro'});rooms.push(b);const sb=observe(b);
   await until(()=>sa.lobby?.members.length===2&&sb.lobby?.members.length===2,'Both clients must receive the lobby');
-  await assert.rejects(()=>new Client('http://127.0.0.1:2575').joinById(a.roomId,{name:'Terceiro'}));
   a.send('start');await delay(80);assert.equal(sa.lobby.stage,'lobby');
   a.send('ready',true);b.send('ready',true);await until(()=>sa.lobby.members.every(m=>m.ready),'Both players ready');
   b.send('start');await delay(80);assert.equal(sa.lobby.stage,'lobby');a.send('start');await until(()=>sa.snapshot?.status==='playing'&&sb.snapshot?.status==='playing','Countdown must lead to playing');

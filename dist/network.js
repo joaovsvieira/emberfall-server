@@ -78,7 +78,7 @@ export class Multiplayer {
             room.onMessage('snapshot', (value) => { if (current())
                 this.receive(value); });
             room.onMessage('events', (events) => { if (current())
-                this.onEvents(events.filter(e => !(e.playerId === this.id && ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno'].includes(e.type)))); });
+                this.onEvents(events.filter(e => !(e.playerId === this.id && ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno', 'arrow', 'lightBolt', 'shield', 'healingWave', 'arrowRain'].includes(e.type)))); });
             room.onMessage('notice', (value) => { if (current())
                 this.onNotice(value); });
             room.onMessage('pong', (value) => { if (current())
@@ -143,7 +143,7 @@ export class Multiplayer {
     }
     predict(input, emit) { if (!this.predictor.player)
         return; this.predictor.time += 1 / 60; this.predictor.stepPlayer(1 / 60, input); const events = this.predictor.events.splice(0); this.predictor.projectiles = []; if (emit)
-        this.onEvents(events.filter(e => ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno'].includes(e.type))); }
+        this.onEvents(events.filter(e => ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno', 'arrow', 'lightBolt', 'shield', 'healingWave', 'arrowRain'].includes(e.type))); }
     step(input) {
         if (!this.room || !this.connected)
             return;

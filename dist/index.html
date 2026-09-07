@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#091c24" />
+  <meta name="description" content="Atravesse as ruínas de uma floresta esquecida. Uma aventura de plataforma e combate com combos, habilidades e um guardião ancestral." />
+  <title>Emberfall — Ecos da Floresta</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23e8c77e' d='M32 3 45 29 32 61 19 29Z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="shell" aria-label="Emberfall, jogo de plataforma">
+    <div id="game" role="application" aria-label="Área do jogo. Use A e D para mover, W, seta para cima ou espaço para pular, F para atacar. Pressione Escape para pausar."></div>
+    <div id="vignette"></div>
+    <header class="topbar">
+      <a class="wordmark" href="#" id="brand" aria-label="Pausar Emberfall"><span class="rune">◇</span> EMBERFALL</a>
+      <span class="chapter">CAPÍTULO I <span> / </span> ECOS DA FLORESTA</span>
+      <div class="top-actions"><button id="sound" class="icon-button" aria-label="Desativar som" title="Desativar som">♪<span class="mute-slash" style="display:none">/</span></button><button id="fullscreen" class="icon-button" aria-label="Tela cheia" title="Tela cheia">⛶</button><button id="pause" class="icon-button hidden" aria-label="Pausar jogo" title="Pausar (Esc)">Ⅱ</button></div>
+    </header>
+    <section id="hud" class="hidden" aria-label="Status do personagem">
+      <div class="player-hud"><div class="portrait"><img id="portrait" alt="Kael" /></div><div class="vitals"><div class="name-row"><strong id="hero-name">KAEL</strong><span>ESPADACHIM</span></div><div class="health-track"><div id="health-fill"></div></div><div class="health-label"><span id="health-value">100 / 100</span><span>VIDA</span></div></div></div>
+      <div class="objective"><span class="eyebrow" id="area-label">01 — LIMIAR DA FLORESTA</span><strong id="objective-text">Atravesse a floresta</strong><div class="progress-track"><div id="level-progress"></div></div></div>
+      <div id="boss-hud" class="hidden"><div><span>GUARDIÃO ANCESTRAL</span><span id="boss-value"></span></div><div class="boss-track"><div id="boss-fill"></div></div></div>
+      <div id="combo" aria-live="off"></div>
+      <div id="toast" role="status"></div>
+      <div class="bottom-hud"><div class="keyboard-hint"><span><kbd>A</kbd><kbd>D</kbd> Mover</span><span><kbd>W</kbd><kbd>↑</kbd><kbd>ESPAÇO</kbd> Pulo duplo</span><span><kbd>F</kbd> Combo</span><span><kbd>SHIFT</kbd> Dash</span></div><div class="skills"><button class="skill" data-action="skill1" id="skill1"><span class="skill-symbol">╱</span><kbd>Q</kbd><span class="skill-name">CORTE SOLAR</span><span class="cooldown" id="cooldown1"></span></button><button class="skill" data-action="skill2" id="skill2"><span class="skill-symbol">✧</span><kbd>E</kbd><span class="skill-name">NOVA RÚNICA</span><span class="cooldown" id="cooldown2"></span></button></div></div>
+    </section>
+    <section id="start-screen" class="screen">
+      <div class="intro"><div class="eyebrow"><span class="gold-line"></span> UMA FLORESTA. UM ÚLTIMO GUARDIÃO.</div><h1>EMBER<span>FALL</span></h1><div class="subtitle">ECOS DA FLORESTA</div><p>A chama antiga despertou.<br>Atravesse as ruínas e enfrente o que ficou para trás.</p><button id="start" class="primary-button"><span>INICIAR JORNADA</span><span>→</span></button><button id="multiplayer" class="outline-button coop-button">JOGAR EM DUPLA <span>02</span></button><button id="controls" class="text-button">Como jogar <span>↗</span></button></div>
+      <div class="intro-footer"><span>SOLO & COOPERATIVO <b>·</b> PLATAFORMA & COMBATE</span><span>01 <i>/</i> A FLORESTA ESQUECIDA</span></div>
+    </section>
+    <section id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-panel"><div class="eyebrow" id="modal-eyebrow">UMA PAUSA NA JORNADA</div><h2 id="modal-title">Respire, viajante.</h2><p id="modal-copy">A floresta pode esperar.</p><div id="controls-list" class="hidden"><div><span>Mover</span><span><kbd>A</kbd> <kbd>D</kbd> ou <kbd>←</kbd> <kbd>→</kbd></span></div><div><span>Pular / pulo duplo</span><span><kbd>W</kbd> <kbd>↑</kbd> <kbd>ESPAÇO</kbd></span></div><div><span>Combo de 3 golpes</span><kbd>F</kbd></div><div><span>Dash / esquiva</span><span><kbd>SHIFT</kbd> ou <kbd>K</kbd></span></div><div><span>Corte solar</span><span><kbd>Q</kbd> ou <kbd>U</kbd></span></div><div><span>Nova rúnica</span><span><kbd>E</kbd> ou <kbd>I</kbd></span></div><div><span>Pausar</span><kbd>ESC</kbd></div><p>As habilidades recarregam sozinhas. O dash evita dano. Colete as chamas verdes para recuperar vida.</p></div><button id="modal-primary" class="primary-button">CONTINUAR</button><button id="modal-secondary" class="text-button">Reiniciar jornada</button></div></section>
+    <section id="mp-panel" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mp-title">
+      <div class="modal-panel mp-panel">
+        <div class="eyebrow">COOPERATIVO ONLINE · 2 JOGADORES</div>
+        <h2 id="mp-title">Duas espadas.<br>Uma jornada.</h2>
+        <div id="mp-entry">
+          <label class="field-label" for="mp-name">SEU APELIDO</label><input id="mp-name" class="mp-input" placeholder="Como vamos chamar você?" minlength="2" maxlength="18" autocomplete="nickname" />
+          <button id="mp-create" class="primary-button">CRIAR SALA <span>＋</span></button>
+          <div class="mp-divider">ou entre na sala de um amigo</div>
+          <form id="mp-join-form"><label class="field-label" for="mp-code">CÓDIGO DA SALA</label><div class="join-row"><input id="mp-code" class="mp-input code-input" placeholder="ABC123" maxlength="6" minlength="6" pattern="[A-Za-z2-9]{6}" autocomplete="off" autocapitalize="characters" required /><button id="mp-join" type="submit" class="outline-button">ENTRAR →</button></div></form>
+        </div>
+        <div id="mp-lobby" class="hidden">
+          <div class="room-code-label">CONVIDE SEU COMPANHEIRO</div><div class="room-code-row"><strong id="mp-room-code"></strong><button id="mp-copy" class="outline-button">Copiar código</button></div>
+          <div id="mp-members"></div>
+          <div id="mp-countdown" class="hidden"></div>
+          <button id="mp-ready" class="outline-button ready-button">ESTOU PRONTO</button>
+          <button id="mp-start" class="primary-button" disabled>INICIAR JORNADA</button>
+          <p class="lobby-hint" id="mp-lobby-hint">Envie o código para um amigo entrar.</p>
+        </div>
+        <p id="mp-status" role="status"></p><button id="mp-back" class="text-button">Voltar ao menu</button>
+      </div>
+    </section>
+    <div id="network-banner" class="hidden" role="status"></div>
+    <div id="peer-hud" class="hidden"><span class="eyebrow">SEU COMPANHEIRO</span><strong id="peer-name"></strong><span id="peer-health"></span><div class="health-track"><div id="peer-fill"></div></div></div>
+    <div id="session-hud" class="hidden"><span id="session-code"></span><span id="session-ping"></span></div>
+    <div id="touch" class="hidden"><div class="touch-move"><button data-hold="left" aria-label="Mover para esquerda">◀</button><button data-hold="right" aria-label="Mover para direita">▶</button></div><div class="touch-attack"><button data-action="dash" aria-label="Dash">⇢</button><button data-action="jump" aria-label="Pular">↑</button><button data-action="attack" aria-label="Atacar">⚔</button></div></div>
+    <div id="loading"><span class="rune">◇</span><p>Despertando a floresta…</p><div class="load-track"><div id="load-fill"></div></div></div>
+  </main>
+  <script src="assets/phaser.min.js"></script>
+  <script src="multiplayer-config.js"></script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

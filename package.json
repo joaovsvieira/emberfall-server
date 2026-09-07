@@ -1,0 +1,19 @@
+{
+  "name": "emberfall-coop",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/main.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.11",
+    "@colyseus/ws-transport": "0.18.2",
+    "@colyseus/sdk": "0.18.2",
+    "express": "5.1.0"
+  },
+  "devDependencies": { "typescript": "5.8.3", "esbuild": "0.25.10" }
+}

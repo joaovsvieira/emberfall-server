@@ -4,7 +4,7 @@ Jogo de plataforma e combate 2D com modo solo e cooperativo online para **2 a 4 
 
 ## Executar
 
-Requer Node.js 22 ou superior.
+Requer Node.js 22 ou superior. Configure `ACCOUNT_DATA_URL` e `DATA_SERVICE_KEY` no ambiente para usar o banco de contas. `.env.example` documenta as chaves; o processo não carrega `.env` automaticamente.
 
 ```bash
 npm ci
@@ -13,7 +13,7 @@ npm start
 
 Abra `http://localhost:2567` em dois a quatro navegadores ou dispositivos na mesma rede (no segundo dispositivo, use o IP do computador servidor). Em cada um, clique em **Jogar PvE**, informe um apelido e crie uma sala ou entre pelo código. Todos na sala marcam **Estou pronto**. Com pelo menos dois jogadores, o anfitrião inicia a jornada.
 
-O servidor entrega também o jogo e configura sua própria conexão automaticamente. Não exige banco de dados, Redis, API de IA, chave de API ou arquivo `.env`. Em hospedagem, escuta em `0.0.0.0:$PORT`.
+O servidor entrega também o jogo e configura sua conexão automaticamente. As contas exigem o banco Cloudflare D1 gerenciado pelo Sites e uma chave de serviço compartilhada com o Render. Não exige Redis ou API de IA. Em hospedagem, escuta em `0.0.0.0:$PORT`.
 
 ## Controles
 
@@ -86,7 +86,7 @@ npm test
 
 Os testes cobrem a lógica do modo solo, comandos inválidos e repetidos, habilidades independentes, reanimação, entrada conjunta no chefe e duas e quatro conexões WebSocket reais: sala, prontidão, limite de vagas, movimento, dano compartilhado, pausa, reconexão, vitória e reinício.
 
-As animações usam poucos quadros com movimento procedural. O jogo é otimizado para teclado e tela horizontal. A versão não inclui conta de usuário, inventário persistente ou matchmaking público.
+As animações usam poucos quadros com movimento procedural. O jogo é otimizado para teclado e tela horizontal. Contas e capítulos são persistentes; inventário, evolução de níveis e matchmaking público ainda não estão implementados.
 
 ## Assets e licenças
 

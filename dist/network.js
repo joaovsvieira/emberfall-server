@@ -1,8 +1,10 @@
 import { Client } from './assets/colyseus.js';
 import { World } from './engine.js';
 export class Multiplayer {
-    constructor(makeClient = (url) => new Client(url)) {
+    constructor(makeClient = (url) => new Client(url), ticketProvider = async () => { const response = await fetch('/api/ticket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); const data = await response.json(); if (!response.ok)
+        throw new Error(data.error ?? 'Faça login para jogar.'); return data.ticket; }) {
         this.makeClient = makeClient;
+        this.ticketProvider = ticketProvider;
         this.sessionId = '';
         this.room = null;
         this.client = null;
@@ -20,6 +22,7 @@ export class Multiplayer {
         this.generation = 0;
         this.onPartyLeft = () => { };
         this.onSessionEnd = () => { };
+        this.onProgress = () => { };
         this.onLobby = () => { };
         this.onSnapshot = () => { };
         this.onEvents = () => { };
@@ -30,7 +33,7 @@ export class Multiplayer {
     get id() { return this.sessionId; }
     get active() { return !!this.room; }
     get canSimulate() { return this.connected && this.snapshot?.stage === 'playing' && !this.snapshot?.paused && this.snapshot?.status === 'playing'; }
-    async connect(name, code = '', mode = 'coop', hero = 'kael') {
+    async connect(name, code = '', mode = 'coop', hero = 'kael', chapter = 1) {
         if (this.connecting || this.room)
             return;
         this.connecting = true;
@@ -52,8 +55,11 @@ export class Multiplayer {
                 throw new Error('O servidor está recebendo o modo PvP. Tente novamente em instantes.');
             if (generation !== this.generation)
                 return;
+            const ticket = await this.ticketProvider();
+            if (generation !== this.generation)
+                return;
             this.client = this.makeClient(url.origin);
-            const room = code ? await this.client.joinById(code.toUpperCase(), { name, hero }) : await this.client.create('forest', { name, mode, hero });
+            const room = code ? await this.client.joinById(code.toUpperCase(), { name, hero, ticket }) : await this.client.create('forest', { name, mode, hero, chapter, ticket });
             if (generation !== this.generation) {
                 await room.leave();
                 return;
@@ -67,6 +73,8 @@ export class Multiplayer {
             this.pending = [];
             this.round = -1;
             const current = () => generation === this.generation && this.room === room && !this.leaving;
+            room.onMessage('progress-saved', () => { if (current())
+                this.onProgress(); });
             room.onMessage('party-left', (name) => { if (current())
                 this.onPartyLeft(name); });
             room.onMessage('session-ended', (s) => { if (current()) {

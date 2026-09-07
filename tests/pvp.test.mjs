@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Client} from '@colyseus/sdk';
 import {CloseCode} from '@colyseus/shared-types';
 import {matchMaker} from '@colyseus/core';
-import {startServer} from '../server/main.mjs';
+import {startTestServer as startServer} from './helpers/server.mjs';
 import {World,createPlayer} from '../dist/engine.js';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,label){const end=Date.now()+8000;while(Date.now()<end){if(fn())return;await delay(25)}assert.fail(label);}

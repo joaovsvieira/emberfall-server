@@ -4,13 +4,14 @@ declare global{interface Window{EMBERFALL_MULTIPLAYER_URL?:string;}}
 export class Multiplayer {
  sessionId='';room:any=null;client:any=null;snapshot:any=null;lobby:any=null;connected=false;connecting=false;ping=0;seq=0;pending:{seq:number;input:Input}[]=[];predictor=new World();round=-1;leaving=false;lastPing=0;generation=0;
  onPartyLeft:(name:string)=>void=()=>{};onSessionEnd:(s:any)=>void=()=>{};
+ onProgress:()=>void=()=>{};
  onLobby:(s:any)=>void=()=>{};onSnapshot:(s:any)=>void=()=>{};onEvents:(e:GameEvent[])=>void=()=>{};onConnection:(s:string)=>void=()=>{};onNotice:(s:string)=>void=()=>{};
- constructor(private makeClient:(url:string)=>any=(url)=>new Client(url)){}
+ constructor(private makeClient:(url:string)=>any=(url)=>new Client(url),private ticketProvider=async()=>{const response=await fetch('/api/ticket',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const data=await response.json();if(!response.ok)throw new Error(data.error??'Faça login para jogar.');return data.ticket;}){}
  get configured(){return !!window.EMBERFALL_MULTIPLAYER_URL;}
  get id(){return this.sessionId;}
  get active(){return !!this.room;}
  get canSimulate(){return this.connected&&this.snapshot?.stage==='playing'&&!this.snapshot?.paused&&this.snapshot?.status==='playing';}
- async connect(name:string,code='',mode:'coop'|'pvp'='coop',hero:HeroId='kael'){
+ async connect(name:string,code='',mode:'solo'|'coop'|'pvp'='coop',hero:HeroId='kael',chapter=1){
    if(this.connecting||this.room)return;this.connecting=true;this.leaving=false;const generation=++this.generation;this.onConnection('connecting');
    try{
      const endpoint=window.EMBERFALL_MULTIPLAYER_URL;if(!endpoint)throw new Error('O modo cooperativo ainda está sendo preparado. Você já pode jogar a jornada solo.');
@@ -18,10 +19,12 @@ export class Multiplayer {
      const response=await fetch(new URL('/health',url),{signal:AbortSignal.timeout(75000)});if(!response.ok)throw new Error('O servidor está despertando. Tente novamente em instantes.');
      const health=await response.json();if(!code&&mode==='pvp'&&!health.modes?.includes('pvp'))throw new Error('O servidor está recebendo o modo PvP. Tente novamente em instantes.');
      if(generation!==this.generation)return;
-     this.client=this.makeClient(url.origin);const room=code?await this.client.joinById(code.toUpperCase(),{name,hero}):await this.client.create('forest',{name,mode,hero});
+     const ticket=await this.ticketProvider();if(generation!==this.generation)return;
+     this.client=this.makeClient(url.origin);const room=code?await this.client.joinById(code.toUpperCase(),{name,hero,ticket}):await this.client.create('forest',{name,mode,hero,chapter,ticket});
      if(generation!==this.generation){await room.leave();return;}
      room.reconnection.minUptime=0;room.reconnection.maxDelay=2000;this.room=room;this.sessionId=room.sessionId;this.connected=true;this.seq=0;this.pending=[];this.round=-1;
      const current=()=>generation===this.generation&&this.room===room&&!this.leaving;
+     room.onMessage('progress-saved',()=>{if(current())this.onProgress();});
      room.onMessage('party-left',(name:string)=>{if(current())this.onPartyLeft(name);});
      room.onMessage('session-ended',(s:any)=>{if(current()){this.receive(s);this.onSessionEnd(s);}});
      room.onMessage('lobby',(value:any)=>{if(!current())return;this.lobby=value;this.onLobby(value);});

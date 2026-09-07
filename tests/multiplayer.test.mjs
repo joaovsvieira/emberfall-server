@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Client} from '@colyseus/sdk';
 import {CloseCode} from '@colyseus/shared-types';
 import {matchMaker} from '@colyseus/core';
-import {startServer} from '../server/main.mjs';
+import {startTestServer as startServer} from './helpers/server.mjs';
 import {World,createPlayer} from '../dist/engine.js';
 import {validateInput,cleanName} from '../server/room.mjs';
 

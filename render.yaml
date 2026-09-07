@@ -12,3 +12,7 @@ services:
         value: 22.16.0
       - key: NODE_ENV
         value: production
+      - key: ACCOUNT_DATA_URL
+        value: https://emberfall-ruinas.joaovsvieira-me.chatgpt.site/internal/data
+      - key: DATA_SERVICE_KEY
+        sync: false

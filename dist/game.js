@@ -1,3 +1,4 @@
+import { Hub } from './hub.js';
 import { GameControls } from './controls.js';
 import { Multiplayer } from './network.js';
 import { World, createPlayer, HEROES, CHAPTERS, LEVEL_WIDTH } from './engine.js';
@@ -80,6 +81,7 @@ export class ForestScene extends Phaser.Scene {
         this.networkLost = false;
         this.resultShown = false;
     }
+    unlockAudio() { audioUnlock(); }
     preload() { this.load.image('forest', 'assets/forest.png'); this.load.image('atlas', 'assets/characters.png'); this.load.image('lyra-sheet', 'assets/lyra.png'); this.load.image('caldera', 'assets/caldera.png'); this.load.image('frosthold', 'assets/frosthold.png'); for (const id of ['aurel', 'sylva'])
         this.load.image(id + '-sheet', `assets/${id}.png`); this.load.on('progress', (v) => { $('load-fill').style.width = `${v * 100}%`; }); this.load.on('loaderror', () => { $('loading').querySelector('p').textContent = 'Não foi possível carregar a arte. Recarregue a página para tentar novamente.'; }); }
     create() {
@@ -112,6 +114,7 @@ export class ForestScene extends Phaser.Scene {
         this.loadHeroPreference();
         this.bindMultiplayer();
         this.uiReady = true;
+        this.hub = new Hub(this);
     }
     createTextures() {
         const source = this.textures.get('atlas').getSourceImage();
@@ -243,13 +246,17 @@ export class ForestScene extends Phaser.Scene {
         }
         $('hero-description').textContent = ({ kael: 'Kael · Espada e combo de três golpes.', lyra: 'Lyra · Bolas de fogo e explosões à distância.', aurel: 'Aurel · Centelha dourada · Q: escudo pessoal · E: cura em área.', sylva: 'Sylva · Flechas · Q: disparo perfurante · E: chuva de flechas à frente.' })[hero];
         this.updateHeroHUD();
+        this.hub?.heroSelected(hero);
     }
     updateHeroHUD() { const id = this.world.player.hero ?? 'kael', hero = HEROES[id]; if (this.portraitHero !== id) {
         $('portrait').src = this.textures.get(this.heroKey(id, 'idle')).getSourceImage().toDataURL();
         this.portraitHero = id;
     } $('hero-role').textContent = hero.role.toUpperCase(); $('skill-name-1').textContent = hero.skill1.toUpperCase(); $('skill-name-2').textContent = hero.skill2.toUpperCase(); $('attack-label').textContent = hero.attack; }
     performModalAction(action) { if (this.transitioning)
-        return; if (action === 'menu') {
+        return; if (action === 'retry-progress') {
+        this.net.command('retry-progress');
+        return;
+    } if (action === 'menu') {
         void this.goToMenu();
         return;
     } if (action === 'controls') {
@@ -316,7 +323,7 @@ export class ForestScene extends Phaser.Scene {
     }
     startGame(chapter = 1) { if (this.session === 'online' || this.transitioning)
         return; this.session = 'solo'; this.world = new World(chapter); this.world.player = createPlayer('solo', HEROES[this.selectedHero].name, 190, this.selectedHero); this.world.players = [this.world.player]; this.resetRoundView(); this.rebuildLevel(); show('start-screen', false); show('hud', true); show('pause', true); show('touch', $('shell').classList.contains('is-touch')); $('shell').classList.add('playing'); this.world.start(); this.updateHUD(); $('start').blur(); }
-    resetRoundView() { this.lastMusic = -3; this.paused = false; this.controlsOpen = false; this.resultShown = false; this.pending = []; this.held = { left: false, right: false }; this.accumulator = 0; this.controls.reset(); this.cameras.main.scrollX = 0; this.tweens.killTweensOf(this.hero); this.hero.setAlpha(1).setAngle(0).setTint(0xffffff); show('modal', false); show('boss-hud', false); this.fx.clear(); this.projectileArt.clear(); }
+    resetRoundView() { this.lastMusic = -3; this.paused = false; this.controlsOpen = false; this.resultShown = false; this.pending = []; this.held = { left: false, right: false }; this.accumulator = 0; this.controls.reset(); this.cameras.main.scrollX = 0; this.tweens.killTweensOf(this.hero); this.hero.setVisible(true).setAlpha(1).setAngle(0).setTint(0xffffff); show('modal', false); show('boss-hud', false); this.fx.clear(); this.projectileArt.clear(); }
     restart() { if (this.session === 'online') {
         if (this.net.connected)
             this.net.command('restart');
@@ -358,11 +365,11 @@ export class ForestScene extends Phaser.Scene {
             this.accumulator = 0;
         }
         if (this.session === 'menu' || (this.world.status === 'ready' && this.activeRound < 1)) {
-            this.hero.setPosition(930, 615 + Math.sin(t * 2) * 2);
+            this.hero.setVisible(false).setPosition(930, 615 + Math.sin(t * 2) * 2);
             this.sizeActor(this.hero, this.heroKey(this.selectedHero, 'idle'), 190);
             this.shadow.setPosition(930, 615).setScale(1.3);
-            for (const [id, a] of this.actors)
-                a.setVisible(id === 0).setPosition(1130, 615);
+            for (const a of this.actors.values())
+                a.setVisible(false);
             return;
         }
         if (this.canControl()) {
@@ -405,6 +412,7 @@ export class ForestScene extends Phaser.Scene {
     }
     canControl() { return this.session !== 'menu' && !this.transitioning && this.world.status === 'playing' && !this.paused && !this.controlsOpen && !this.networkLost && $('modal').classList.contains('hidden') && $('mp-panel').classList.contains('hidden') && $('start-screen').classList.contains('hidden') && (this.session === 'solo' || this.net.canSimulate); }
     renderActors(t) {
+        this.hero.setVisible(true);
         const p = this.world.player;
         const target = this.world.mode === 'pvp' ? LEVEL_WIDTH - 1280 : Phaser.Math.Clamp(p.x - 460, 0, LEVEL_WIDTH - 1280);
         this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, target, .09);
@@ -535,7 +543,8 @@ export class ForestScene extends Phaser.Scene {
         }
     }
     bindMultiplayer() {
-        const openOnline = (mode) => { this.selectedMode = mode; audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); this.setModeTitle(mode); $('mp-status').textContent = ''; this.controls.reset(); $('mp-name').focus(); };
+        const openOnline = (mode) => { if (!this.hub?.canPlay())
+            return; this.selectedMode = mode; audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); this.setModeTitle(mode); $('mp-status').textContent = ''; this.controls.reset(); $('mp-name').focus(); };
         $('multiplayer').onclick = () => openOnline('coop');
         $('pvp').onclick = () => openOnline('pvp');
         const connect = (join) => { const name = $('mp-name').value.trim(), raw = $('mp-code').value.trim(); let code = raw.toUpperCase(); try {
@@ -547,7 +556,7 @@ export class ForestScene extends Phaser.Scene {
         } if (join && !/^[A-Z2-9]{6}$/.test(code)) {
             $('mp-status').textContent = 'Informe o código de 6 caracteres.';
             return;
-        } audioUnlock(); this.session = 'online'; void this.net.connect(name, join ? code : '', this.selectedMode, this.selectedHero); };
+        } audioUnlock(); this.session = 'online'; void this.net.connect(name, join ? code : '', this.selectedMode, this.selectedHero, this.hub.chapter); };
         $('mp-create').onclick = () => connect(false);
         $('mp-join-form').onsubmit = e => { e.preventDefault(); connect(true); };
         $('mp-back').onclick = () => void this.goToMenu();
@@ -568,7 +577,7 @@ export class ForestScene extends Phaser.Scene {
             $('mp-status').textContent = 'Copie o código da sala para convidar seu amigo.';
         } };
         const invite = new URL(location.href);
-        if (invite.searchParams.has('room')) {
+        if (this.hub?.profile && invite.searchParams.has('room')) {
             openOnline(invite.searchParams.get('mode') === 'pvp' ? 'pvp' : 'coop');
             $('mp-code').value = invite.searchParams.get('room') ?? '';
         }
@@ -591,6 +600,10 @@ export class ForestScene extends Phaser.Scene {
                 $(id).disabled = busy;
             if (busy)
                 $('mp-status').textContent = 'Conectando à floresta… Na primeira visita, o servidor pode levar um minuto para despertar.';
+            if (state === 'error' && this.selectedMode === 'solo') {
+                show('mp-entry', false);
+                show('mp-lobby', false);
+            }
             if (state === 'connected') {
                 $('mp-status').textContent = '';
                 this.networkLost = false;
@@ -652,7 +665,7 @@ export class ForestScene extends Phaser.Scene {
                 return;
             const chapterChanged = this.world.chapter !== (s.chapter ?? 1);
             this.world.chapter = s.chapter ?? 1;
-            this.world.mode = s.mode ?? 'coop';
+            this.world.mode = s.mode === 'pvp' ? 'pvp' : 'coop';
             this.world.winnerId = s.winnerId;
             this.world.players = s.players.map((p) => ({ ...p }));
             this.world.player = this.net.predictor.player;
@@ -699,6 +712,13 @@ export class ForestScene extends Phaser.Scene {
         if (s.stage === 'lobby' && this.net.active)
             show('mp-panel', true);
         this.setModeTitle(s.mode ?? 'coop');
+        if (s.mode === 'solo' && s.stage === 'lobby') {
+            const own = s.members.find((m) => m.id === this.net.id);
+            if (own?.ready)
+                this.net.command('start');
+            else
+                this.net.command('ready', true);
+        }
         $('mp-start').textContent = s.mode === 'pvp' ? 'INICIAR DUELO' : 'INICIAR JORNADA';
         show('mp-entry', false);
         show('mp-lobby', true);
@@ -733,7 +753,7 @@ export class ForestScene extends Phaser.Scene {
         $('mp-ready').textContent = own?.ready ? 'PRONTO ✓ · CANCELAR' : 'ESTOU PRONTO';
         $('mp-ready').disabled = s.stage !== 'lobby';
         show('mp-start', host);
-        $('mp-start').disabled = s.stage !== 'lobby' || s.members.length < 2 || s.members.some((m) => !m.ready || !m.connected);
+        $('mp-start').disabled = s.stage !== 'lobby' || s.members.length < (s.mode === 'solo' ? 1 : 2) || s.members.some((m) => !m.ready || !m.connected);
         $('mp-lobby-hint').textContent = s.stage === 'countdown' ? 'A partida está começando…' : s.members.length < 2 ? 'Envie o código para um amigo entrar.' : host ? 'Com 2 a 4 jogadores, todos na sala devem estar prontos para iniciar.' : 'Marque-se como pronto. O anfitrião inicia a jornada.';
         show('mp-countdown', s.stage === 'countdown');
         $('mp-countdown').textContent = String(s.countdown);
@@ -771,10 +791,14 @@ export class ForestScene extends Phaser.Scene {
         for (const id of ['mp-create', 'mp-join', 'mp-name', 'mp-code'])
             $(id).disabled = false;
         $('mp-status').textContent = '';
-        show('start-screen', true);
+        show('start-screen', !!this.hub?.profile);
         $('shell').classList.remove('playing');
         this.selectHero(this.selectedHero);
-        $('start').focus();
+        if (this.hub?.profile) {
+            this.hub.setTab('map');
+            void this.hub.refresh(false);
+        }
+        $('tab-map').focus();
         try {
             await leaving;
         }
@@ -939,8 +963,15 @@ export class ForestScene extends Phaser.Scene {
         this.secondaryAction = 'restart';
         this.updateCampaignButtons();
     }
-    updateCampaignButtons() { const allowed = this.session === 'solo' || (this.net.connected && this.net.lobby?.host === this.net.id && this.net.lobby.members.every((m) => m.connected)); $('modal-primary').disabled = !allowed; $('modal-secondary').disabled = !allowed; $('modal-primary').textContent = allowed ? (this.primaryAction === 'next' ? `IR PARA O CAPÍTULO ${this.world.chapter === 1 ? 'II' : 'III'}` : 'REINICIAR CAPÍTULO') : 'AGUARDANDO O ANFITRIÃO'; }
-    setModeTitle(mode) { $('mp-eyebrow').textContent = mode === 'pvp' ? 'PVP ONLINE · 1 CONTRA 1' : 'COOPERATIVO ONLINE · 2–4 JOGADORES'; $('mp-title').textContent = mode === 'pvp' ? 'Dois heróis. Um vencedor.' : 'Uma equipe. Uma jornada.'; }
+    updateCampaignButtons() { const progress = this.net.lobby?.progress; if (this.session === 'online' && (progress === 'saving' || progress === 'error')) {
+        this.primaryAction = progress === 'error' ? 'retry-progress' : 'resume';
+        $('modal-primary').textContent = progress === 'error' ? 'TENTAR SALVAR NOVAMENTE' : 'SALVANDO PROGRESSO…';
+        $('modal-primary').disabled = progress === 'saving';
+        $('modal-secondary').disabled = true;
+        return;
+    } if (this.session === 'online' && progress === 'saved')
+        this.primaryAction = this.world.chapter < 3 ? 'next' : 'restart'; const allowed = this.session === 'solo' || (this.net.connected && this.net.lobby?.host === this.net.id && this.net.lobby.members.every((m) => m.connected)); $('modal-primary').disabled = !allowed; $('modal-secondary').disabled = !allowed; $('modal-primary').textContent = allowed ? (this.primaryAction === 'next' ? `IR PARA O CAPÍTULO ${this.world.chapter === 1 ? 'II' : 'III'}` : 'REINICIAR CAPÍTULO') : 'AGUARDANDO O ANFITRIÃO'; }
+    setModeTitle(mode) { $('mp-eyebrow').textContent = mode === 'solo' ? 'JORNADA INDIVIDUAL' : mode === 'pvp' ? 'PVP ONLINE · 1 CONTRA 1' : 'COOPERATIVO ONLINE · 2–4 JOGADORES'; $('mp-title').textContent = mode === 'solo' ? 'Sua chama. Sua jornada.' : mode === 'pvp' ? 'Dois heróis. Um vencedor.' : 'Uma equipe. Uma jornada.'; }
     scoreText(scores = []) { return scores.map(p => `${p.name}: ${p.wins}`).join('  ×  '); }
     showPvpResult(s) {
         this.resultShown = true;
@@ -964,7 +995,7 @@ export class ForestScene extends Phaser.Scene {
         $('modal-menu').textContent = host && this.net.connected ? 'Encerrar sala e voltar ao menu' : 'Menu principal';
     }
     updateHUD() { const p = this.world.player; this.updateHeroHUD(); const pvp = this.world.mode === 'pvp'; show('duel-hud', pvp && this.session === 'online'); $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores); $('duel-round').textContent = `DUELO ${this.activeRound}`; $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SUA EQUIPE'; $('level-progress').parentElement.classList.toggle('hidden', pvp); $('hero-name').textContent = this.session === 'online' ? p.name : HEROES[p.hero].name.toUpperCase(); $('health-fill').style.width = `${p.hp}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / 100`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = this.world.level.zones.map((name, i) => `0${i + 1} — ${name}`); $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'Capítulo concluído' : this.world.bossActive ? `Derrote ${this.world.level.boss}` : this.net.active && p.x > 3780 ? 'Aguarde sua equipe no santuário' : this.world.chapter === 3 ? 'Atravesse a cidadela →' : this.world.chapter === 2 ? 'Atravesse a caldeira →' : 'Atravesse a floresta →'; if (pvp) {
-        $('area-label').textContent = 'ARENA · SANTUÁRIO DA CHAMA';
+        $('area-label').textContent = 'ARENA · ' + this.world.level.name.toUpperCase();
         $('objective-text').textContent = this.world.status === 'won' ? 'Duelo concluído' : 'Derrote seu adversário';
     } for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {
         const el = $('cooldown' + i);

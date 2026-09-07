@@ -1,3 +1,4 @@
+import { GameControls } from './controls.js';
 import { Multiplayer } from './network.js';
 import { World, platforms, LEVEL_WIDTH } from './engine.js';
 const $ = (id) => document.getElementById(id);
@@ -59,6 +60,7 @@ class ForestScene extends Phaser.Scene {
         this.controlsOpen = false;
         this.pending = [];
         this.held = { left: false, right: false };
+        this.selectedMode = 'coop';
         this.lastHud = 0;
         this.lastZone = -1;
         this.accumulator = 0;
@@ -108,17 +110,9 @@ class ForestScene extends Phaser.Scene {
         this.fx = this.add.graphics().setDepth(7);
         this.projectileArt = this.add.graphics().setDepth(6);
         this.cameras.main.setBounds(0, 0, LEVEL_WIDTH, 720);
-        this.keys = this.input.keyboard.addKeys({ left: 'A', right: 'D', left2: 'LEFT', right2: 'RIGHT', jump: 'SPACE', jump2: 'W', jump3: 'UP', attack: 'F', dash: 'SHIFT', dash2: 'K', skill1: 'Q', skill1b: 'U', skill2: 'E', skill2b: 'I', pause: 'ESC', restart: 'R' });
-        this.input.keyboard.addCapture(['SPACE', 'UP', 'DOWN', 'LEFT', 'RIGHT']);
-        this.input.keyboard.on('keydown', (event) => { if (event.repeat)
-            return; if (event.code === 'Escape') {
-            if (this.controlsOpen) {
-                this.closeControls();
-            }
-            else
-                this.togglePause();
-        } if (event.code === 'KeyR' && (this.world.status === 'dead' || this.world.status === 'won'))
-            this.restart(); });
+        this.input.keyboard.clearCaptures();
+        this.input.keyboard.enabled = false;
+        this.controls = new GameControls(() => this.canControl(), () => this.togglePause(), window, this.game.canvas);
         const idleCanvas = this.textures.get('idle').getSourceImage();
         $('portrait').src = idleCanvas.toDataURL();
         $('loading').classList.add('hidden');
@@ -193,11 +187,13 @@ class ForestScene extends Phaser.Scene {
         else
             this.restart(); };
         for (const button of document.querySelectorAll('[data-action]')) {
-            button.addEventListener('pointerdown', (e) => { e.preventDefault(); audioUnlock(); this.pending.push(button.dataset.action); });
+            button.addEventListener('pointerdown', (e) => { if (!this.canControl())
+                return; e.preventDefault(); audioUnlock(); this.pending.push(button.dataset.action); });
         }
         for (const button of document.querySelectorAll('[data-hold]')) {
             const dir = button.dataset.hold;
-            button.addEventListener('pointerdown', e => { e.preventDefault(); button.setPointerCapture(e.pointerId); this.held[dir] = true; });
+            button.addEventListener('pointerdown', e => { if (!this.canControl())
+                return; e.preventDefault(); button.setPointerCapture(e.pointerId); this.held[dir] = true; });
             const release = () => this.held[dir] = false;
             button.addEventListener('pointerup', release);
             button.addEventListener('pointercancel', release);
@@ -208,7 +204,7 @@ class ForestScene extends Phaser.Scene {
         }
         document.addEventListener('visibilitychange', () => { if (document.hidden && this.world.status === 'playing' && !this.paused)
             this.togglePause(); });
-        window.addEventListener('blur', () => { this.held = { left: false, right: false }; this.pending = []; this.input.keyboard.resetKeys(); if (this.world.status === 'playing' && !this.paused)
+        window.addEventListener('blur', () => { this.held = { left: false, right: false }; this.pending = []; this.controls.reset(); if (this.world.status === 'playing' && !this.paused)
             this.togglePause(); });
         $('modal').addEventListener('keydown', (e) => { if (e.key !== 'Tab')
             return; const items = [...$('modal').querySelectorAll('button')].filter(el => !el.classList.contains('hidden')); const first = items[0], last = items[items.length - 1]; if (e.shiftKey && document.activeElement === first) {
@@ -220,7 +216,7 @@ class ForestScene extends Phaser.Scene {
             first.focus();
         } });
     }
-    startGame() { show('start-screen', false); show('hud', true); show('pause', true); show('touch', $('shell').classList.contains('is-touch')); $('shell').classList.add('playing'); this.world.start(); this.cameras.main.scrollX = 0; this.hero.setAlpha(1); this.sizeActor(this.hero, 'idle', 126); this.pending = []; this.input.keyboard.resetKeys(); $('start').blur(); this.updateHUD(); }
+    startGame() { show('start-screen', false); show('hud', true); show('pause', true); show('touch', $('shell').classList.contains('is-touch')); $('shell').classList.add('playing'); this.world.start(); this.cameras.main.scrollX = 0; this.hero.setAlpha(1); this.sizeActor(this.hero, 'idle', 126); this.pending = []; this.controls.reset(); $('start').blur(); this.updateHUD(); }
     restart() { if (this.net.active) {
         this.net.command('restart');
         return;
@@ -229,19 +225,19 @@ class ForestScene extends Phaser.Scene {
         this.tweens.killTweensOf(a);
         a.setVisible(true).setAlpha(1).setTint(0xffffff);
         this.sizeActor(a, e.kind, e.kind === 'boss' ? 244 : e.kind === 'goblin' ? 88 : e.kind === 'bat' ? 100 : 135);
-    } show('modal', false); show('boss-hud', false); this.world.start(); this.updateHUD(); this.input.keyboard.resetKeys(); $('modal-primary').blur(); }
+    } show('modal', false); show('boss-hud', false); this.world.start(); this.updateHUD(); this.controls.reset(); $('modal-primary').blur(); }
     togglePause() { if (this.world.status !== 'playing')
         return; if (this.paused) {
         this.resume();
         return;
-    } this.paused = true; if (this.net.active)
+    } this.paused = true; this.controls.reset(); if (this.net.active)
         this.net.command('pause', true); this.pending = []; this.held = { left: false, right: false }; this.showModal('UMA PAUSA NA JORNADA', 'Respire, viajante.', this.net.active ? 'A partida fica pausada para os dois jogadores.' : 'A floresta pode esperar.', 'CONTINUAR'); if (this.net.active)
-        $('modal-secondary').textContent = 'Sair da sala'; }
+        $('modal-secondary').textContent = this.world.mode === 'pvp' && this.net.lobby?.host === this.net.id ? 'Encerrar sala' : 'Sair da sala'; }
     resume() { this.paused = false; if (this.net.active)
-        this.net.command('pause', false); this.pending = []; this.input.keyboard.resetKeys(); show('modal', false); $('modal-primary').blur(); }
+        this.net.command('pause', false); this.pending = []; this.controls.reset(); show('modal', false); $('modal-primary').blur(); }
     openControls() { this.controlsOpen = true; this.showModal('PREPARE SUA ESPADA', 'Como jogar', 'Domine o movimento. Encontre o ritmo dos golpes.', 'ENTENDI'); show('controls-list', true); show('modal-secondary', false); }
     closeControls() { this.controlsOpen = false; show('modal', false); show('controls-list', false); $('controls').focus(); }
-    showModal(eyebrow, title, copy, button) { $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-primary').focus()); }
+    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-primary').focus()); }
     toast(text) { $('toast').textContent = text; $('toast').style.opacity = '1'; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => $('toast').style.opacity = '0', 4200); }
     update(_time, delta) {
         if (!this.uiReady)
@@ -253,7 +249,12 @@ class ForestScene extends Phaser.Scene {
             a.dot.y = a.y + Math.sin(t * .5 + a.phase) * 18;
             a.dot.alpha = .12 + (Math.sin(t + a.phase) + 1) * .16;
         }
-        if (this.world.status === 'ready') {
+        if (!this.controls.sync()) {
+            this.pending = [];
+            this.held = { left: false, right: false };
+            this.accumulator = 0;
+        }
+        if (this.world.status === 'ready' && this.activeRound < 1) {
             this.hero.setPosition(930, 615 + Math.sin(t * 2) * 2);
             this.sizeActor(this.hero, 'idle', 175);
             this.shadow.setPosition(930, 615).setScale(1.3);
@@ -261,14 +262,10 @@ class ForestScene extends Phaser.Scene {
                 a.setVisible(id === 0).setPosition(1130, 615);
             return;
         }
-        if ((!this.paused || this.net.active) && this.world.status === 'playing') {
-            const actions = this.pending.splice(0);
-            const just = Phaser.Input.Keyboard.JustDown;
-            for (const [k, a] of [['jump', 'jump'], ['jump2', 'jump'], ['jump3', 'jump'], ['dash', 'dash'], ['dash2', 'dash'], ['skill1', 'skill1'], ['skill1b', 'skill1'], ['skill2', 'skill2'], ['skill2b', 'skill2']]) {
-                if (just(this.keys[k]) && !actions.includes(a))
-                    actions.push(a);
-            }
-            const input = { left: this.keys.left.isDown || this.keys.left2.isDown || this.held.left, right: this.keys.right.isDown || this.keys.right2.isDown || this.held.right, attack: this.keys.attack.isDown, actions };
+        if (this.canControl()) {
+            const sampled = this.controls.sample();
+            const actions = [...new Set([...(sampled.actions ?? []), ...this.pending.splice(0)])];
+            const input = { ...sampled, left: sampled.left || this.held.left, right: sampled.right || this.held.right, actions };
             this.accumulator += dt;
             let first = true;
             const tick = this.net.active ? 1 / 60 : 1 / 120;
@@ -303,9 +300,10 @@ class ForestScene extends Phaser.Scene {
             this.lastHud = _time;
         }
     }
+    canControl() { return this.world.status === 'playing' && !this.paused && !this.controlsOpen && !this.networkLost && $('modal').classList.contains('hidden') && $('mp-panel').classList.contains('hidden') && $('start-screen').classList.contains('hidden') && (!this.net.active || this.net.canSimulate); }
     renderActors(t) {
         const p = this.world.player;
-        const target = Phaser.Math.Clamp(p.x - 460, 0, LEVEL_WIDTH - 1280);
+        const target = this.world.mode === 'pvp' ? LEVEL_WIDTH - 1280 : Phaser.Math.Clamp(p.x - 460, 0, LEVEL_WIDTH - 1280);
         this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, target, .09);
         this.bg.tilePositionX = this.cameras.main.scrollX * .13;
         const key = p.attack > 0 ? 'slash' : !p.grounded || Math.abs(p.vx) > 45 ? (Math.floor(this.world.time * 10) % 2 ? 'run1' : 'run2') : 'idle';
@@ -317,6 +315,9 @@ class ForestScene extends Phaser.Scene {
             const ghost = this.add.image(p.x - p.dir * 24, p.y, key).setOrigin(.5, 1).setFlipX(p.dir < 0).setDisplaySize(this.hero.displayWidth, 126).setTint(0x83f4e1).setAlpha(.35).setDepth(3);
             this.tweens.add({ targets: ghost, alpha: 0, duration: 200, onComplete: () => ghost.destroy() });
         }
+        for (const [id, a] of this.actors)
+            if (!this.world.enemies.some(e => e.id === id))
+                a.setVisible(false);
         for (const e of this.world.enemies) {
             const a = this.actors.get(e.id);
             if (e.dead) {
@@ -346,7 +347,7 @@ class ForestScene extends Phaser.Scene {
                 }
             }
         }
-        if (this.world.bossActive && this.world.status === 'playing') {
+        if ((this.world.bossActive || this.world.mode === 'pvp') && this.world.status === 'playing') {
             this.fx.lineStyle(3, 0xe8bd80, .5 + Math.sin(t * 4) * .2);
             this.fx.lineBetween(3820, 360, 3820, 615);
             this.fx.lineBetween(4770, 360, 4770, 615);
@@ -378,14 +379,19 @@ class ForestScene extends Phaser.Scene {
         }
     }
     bindMultiplayer() {
-        $('multiplayer').onclick = () => { audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); $('mp-status').textContent = this.net.configured ? '' : 'O modo cooperativo estará disponível assim que o servidor estiver pronto.'; this.input.keyboard.enabled = false; $('mp-name').focus(); };
-        const connect = (join) => { const name = $('mp-name').value.trim(), code = $('mp-code').value.trim().toUpperCase(); if (name.length < 2) {
+        const openOnline = (mode) => { this.selectedMode = mode; audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); this.setModeTitle(mode); $('mp-status').textContent = ''; this.controls.reset(); $('mp-name').focus(); };
+        $('multiplayer').onclick = () => openOnline('coop');
+        $('pvp').onclick = () => openOnline('pvp');
+        const connect = (join) => { const name = $('mp-name').value.trim(), raw = $('mp-code').value.trim(); let code = raw.toUpperCase(); try {
+            code = new URL(raw).searchParams.get('room')?.toUpperCase() ?? code;
+        }
+        catch { } ; if (name.length < 2) {
             $('mp-status').textContent = 'Informe um apelido de 2 a 18 caracteres.';
             return;
         } if (join && !/^[A-Z2-9]{6}$/.test(code)) {
             $('mp-status').textContent = 'Informe o código de 6 caracteres.';
             return;
-        } audioUnlock(); void this.net.connect(name, join ? code : ''); };
+        } audioUnlock(); void this.net.connect(name, join ? code : '', this.selectedMode); };
         $('mp-create').onclick = () => connect(false);
         $('mp-join-form').onsubmit = e => { e.preventDefault(); connect(true); };
         $('mp-back').onclick = () => void this.leaveOnline();
@@ -398,6 +404,18 @@ class ForestScene extends Phaser.Scene {
         catch {
             $('mp-status').textContent = 'Selecione e copie o código exibido acima.';
         } };
+        $('mp-copy-link').onclick = async () => { const url = new URL(location.href); url.searchParams.set('room', this.net.lobby?.code ?? ''); url.searchParams.set('mode', this.net.lobby?.mode ?? 'coop'); try {
+            await navigator.clipboard.writeText(url.href);
+            $('mp-status').textContent = 'Convite copiado. Envie para seu amigo.';
+        }
+        catch {
+            $('mp-status').textContent = 'Copie o código da sala para convidar seu amigo.';
+        } };
+        const invite = new URL(location.href);
+        if (invite.searchParams.has('room')) {
+            openOnline(invite.searchParams.get('mode') === 'pvp' ? 'pvp' : 'coop');
+            $('mp-code').value = invite.searchParams.get('room') ?? '';
+        }
         $('mp-panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') {
             void this.leaveOnline();
             return;
@@ -444,8 +462,8 @@ class ForestScene extends Phaser.Scene {
                 this.accumulator = 0;
                 show('modal', false);
                 this.pending = [];
-                this.input.keyboard.resetKeys();
-                this.cameras.main.scrollX = 0;
+                this.controls.reset();
+                this.cameras.main.scrollX = s.mode === 'pvp' ? LEVEL_WIDTH - 1280 : 0;
                 for (const [id, a] of this.actors) {
                     this.tweens.killTweensOf(a);
                     a.setAlpha(1).setVisible(true).setTint(0xffffff);
@@ -458,6 +476,8 @@ class ForestScene extends Phaser.Scene {
             }
             if (!s.players.some((p) => p.id === this.net.id))
                 return;
+            this.world.mode = s.mode ?? 'coop';
+            this.world.winnerId = s.winnerId;
             this.world.players = s.players.map((p) => ({ ...p }));
             this.world.player = this.net.predictor.player;
             this.world.status = s.status;
@@ -468,6 +488,11 @@ class ForestScene extends Phaser.Scene {
             this.world.enemies = s.enemies.map((e) => ({ ...e }));
             this.world.projectiles = s.projectiles;
             this.world.pickups = s.pickups;
+            if (s.stage === 'countdown') {
+                show('mp-panel', true);
+                show('mp-lobby', true);
+                show('mp-entry', false);
+            }
             if (s.stage === 'playing') {
                 show('start-screen', false);
                 show('mp-panel', false);
@@ -476,19 +501,26 @@ class ForestScene extends Phaser.Scene {
                 show('session-hud', true);
                 show('touch', $('shell').classList.contains('is-touch'));
                 $('shell').classList.add('playing');
-                this.input.keyboard.enabled = true;
                 $('mp-start').blur();
             }
-            if (['dead', 'won'].includes(s.status) && !this.resultShown)
-                this.event({ type: s.status });
+            if (['dead', 'won'].includes(s.status) && !this.resultShown) {
+                if (s.mode === 'pvp')
+                    this.showPvpResult(s);
+                else
+                    this.event({ type: s.status });
+            }
         };
         this.net.onEvents = events => { for (const ev of events) {
-            if (['dead', 'won'].includes(ev.type) && this.resultShown)
+            if (['dead', 'won'].includes(ev.type) && (this.resultShown || this.world.mode === 'pvp'))
                 continue;
             this.event(ev);
         } };
     }
     renderLobby(s) {
+        if (s.stage === 'lobby' && this.net.active)
+            show('mp-panel', true);
+        this.setModeTitle(s.mode ?? 'coop');
+        $('mp-start').textContent = s.mode === 'pvp' ? 'INICIAR DUELO' : 'INICIAR JORNADA';
         show('mp-entry', false);
         show('mp-lobby', true);
         $('mp-room-code').textContent = s.code;
@@ -508,16 +540,18 @@ class ForestScene extends Phaser.Scene {
             }
             else {
                 card.classList.add('empty');
-                card.textContent = 'Aguardando seu companheiro…';
+                card.textContent = s.mode === 'pvp' ? 'Aguardando seu adversário…' : 'Aguardando seu companheiro…';
             }
             $('mp-members').append(card);
         }
+        if (this.resultShown && s.mode === 'pvp')
+            this.updatePvpResultButtons(s);
         const own = s.members.find((m) => m.id === this.net.id), host = s.host === this.net.id;
         $('mp-ready').textContent = own?.ready ? 'PRONTO ✓ · CANCELAR' : 'ESTOU PRONTO';
         $('mp-ready').disabled = s.stage !== 'lobby';
         show('mp-start', host);
         $('mp-start').disabled = s.stage !== 'lobby' || s.members.length !== 2 || s.members.some((m) => !m.ready || !m.connected);
-        $('mp-lobby-hint').textContent = s.stage === 'countdown' ? 'A jornada está começando…' : s.members.length < 2 ? 'Envie o código para um amigo entrar.' : host ? 'Quando os dois estiverem prontos, inicie a jornada.' : 'Marque-se como pronto. O anfitrião inicia a jornada.';
+        $('mp-lobby-hint').textContent = s.stage === 'countdown' ? 'A partida está começando…' : s.members.length < 2 ? 'Envie o código para um amigo entrar.' : host ? 'Quando os dois estiverem prontos, inicie a jornada.' : 'Marque-se como pronto. O anfitrião inicia a jornada.';
         show('mp-countdown', s.stage === 'countdown');
         $('mp-countdown').textContent = String(s.countdown);
         if (s.stage === 'playing' && this.net.connected) {
@@ -531,13 +565,14 @@ class ForestScene extends Phaser.Scene {
                 show('network-banner', false);
         }
     }
-    async leaveOnline() { await this.net.leave(); this.networkLost = false; this.activeRound = -1; this.paused = false; this.resultShown = false; this.world = new World(); this.accumulator = 0; this.pending = []; this.held = { left: false, right: false }; this.input.keyboard.enabled = true; this.input.keyboard.resetKeys(); this.cameras.main.scrollX = 0; this.bg.tilePositionX = 0; this.hero.setAlpha(1).setAngle(0).setTint(0xffffff); for (const a of this.remoteActors.values()) {
+    async leaveOnline() { if (this.net.active && this.net.lobby?.host === this.net.id && this.net.lobby?.mode === 'pvp')
+        this.net.command('close'); await this.net.leave(); this.networkLost = false; this.activeRound = -1; this.paused = false; this.resultShown = false; this.world = new World(); this.accumulator = 0; this.pending = []; this.held = { left: false, right: false }; this.controls.reset(); this.cameras.main.scrollX = 0; this.bg.tilePositionX = 0; this.fx.clear(); this.projectileArt.clear(); this.hero.setAlpha(1).setAngle(0).setTint(0xffffff); for (const a of this.remoteActors.values()) {
         a.image.destroy();
         a.label.destroy();
     } this.remoteActors.clear(); for (const a of this.actors.values()) {
         this.tweens.killTweensOf(a);
         a.setAlpha(1).setTint(0xffffff);
-    } for (const id of ['mp-panel', 'modal', 'hud', 'pause', 'touch', 'peer-hud', 'session-hud', 'network-banner'])
+    } for (const id of ['mp-panel', 'modal', 'hud', 'pause', 'touch', 'peer-hud', 'session-hud', 'network-banner', 'duel-hud'])
         show(id, false); show('start-screen', true); $('shell').classList.remove('playing'); $('modal-secondary').textContent = 'Reiniciar jornada'; $('modal-primary').disabled = false; $('multiplayer').focus(); }
     renderPeers(t) {
         if (!this.net.active)
@@ -565,7 +600,7 @@ class ForestScene extends Phaser.Scene {
             this.sizeActor(a.image, key, 126);
             const distance = Math.hypot(a.image.x - p.x, a.image.y - p.y);
             a.image.setPosition(distance > 220 ? p.x : Phaser.Math.Linear(a.image.x, p.x, .38), distance > 220 ? p.y : Phaser.Math.Linear(a.image.y, p.y, .38)).setFlipX(p.dir < 0).setTint(p.hp > 0 ? 0xbed9ff : 0x718f9a).setAlpha(p.invincible > 0 ? .65 : 1).setAngle(p.hp > 0 ? 0 : -75);
-            a.label.setPosition(a.image.x, a.image.y - (p.hp > 0 ? 145 : 70)).setText(p.hp > 0 ? p.name : `${p.name} · reanimar ${Math.round(p.revive / 2.5 * 100)}%`);
+            a.label.setPosition(a.image.x, a.image.y - (p.hp > 0 ? 145 : 70)).setText(p.hp > 0 ? p.name : this.world.mode === 'pvp' ? `${p.name} · derrotado` : `${p.name} · reanimar ${Math.round(p.revive / 2.5 * 100)}%`);
         }
         const peer = this.world.players.find(p => p.id !== this.net.id);
         show('peer-hud', !!peer);
@@ -587,7 +622,7 @@ class ForestScene extends Phaser.Scene {
             return;
         const x = ev.x ?? 0, y = ev.y ?? 0;
         playSound(ev.type);
-        if (ev.type === 'downed' && this.net.active) {
+        if (ev.type === 'downed' && this.net.active && this.world.mode !== 'pvp') {
             this.toast(ev.playerId === this.net.id ? 'Você caiu. Seu companheiro pode reanimar você.' : 'Aproxime-se do companheiro caído por 3 segundos para reanimá-lo.');
             return;
         }
@@ -675,12 +710,38 @@ class ForestScene extends Phaser.Scene {
             $('modal-primary').textContent = host ? 'JOGAR NOVAMENTE' : 'AGUARDANDO O ANFITRIÃO';
         }
     }
-    updateHUD() { const p = this.world.player; $('hero-name').textContent = this.net.active ? p.name : 'KAEL'; $('health-fill').style.width = `${p.hp}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / 100`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = ['01 — LIMIAR DA FLORESTA', '02 — RUÍNAS DO VÉU', '03 — SANTUÁRIO DA CHAMA']; $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'A floresta está em paz' : this.world.bossActive ? 'Derrote o Guardião Ancestral' : this.net.active && p.x > 3780 ? 'Aguarde seu companheiro no santuário' : 'Atravesse a floresta →'; for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {
+    setModeTitle(mode) { $('mp-eyebrow').textContent = mode === 'pvp' ? 'PVP ONLINE · 1 CONTRA 1' : 'COOPERATIVO ONLINE · 2 JOGADORES'; $('mp-title').textContent = mode === 'pvp' ? 'Duas espadas. Um vencedor.' : 'Duas espadas. Uma jornada.'; }
+    scoreText(scores = []) { return scores.map(p => `${p.name}: ${p.wins}`).join('  ×  '); }
+    showPvpResult(s) {
+        this.resultShown = true;
+        const winner = s.scores?.find((p) => p.id === s.result?.winnerId);
+        const won = winner?.id === this.net.id;
+        this.showModal(`DUELO ${s.round} CONCLUÍDO`, winner ? (won ? 'Vitória!' : 'Derrota.') : 'Duelo encerrado', winner ? `${winner.name} venceu${s.result?.reason === 'forfeit' ? ' por desistência' : ''}.` : 'A partida foi encerrada.', 'REVANCHE');
+        $('pvp-score').textContent = this.scoreText(s.scores);
+        show('pvp-result', true);
+        this.updatePvpResultButtons(this.net.lobby);
+        if (won)
+            playSound('won');
+    }
+    updatePvpResultButtons(lobby) {
+        const host = lobby?.host === this.net.id, canRestart = lobby?.members.length === 2 && lobby.members.every((m) => m.connected);
+        $('modal-primary').disabled = !host || !canRestart;
+        $('modal-primary').textContent = !canRestart ? 'ADVERSÁRIO SAIU' : host ? 'REVANCHE' : 'AGUARDANDO O ANFITRIÃO';
+        $('modal-secondary').textContent = host ? 'Encerrar sala' : 'Sair da sala';
+        show('modal-secondary', true);
+    }
+    updateHUD() { const p = this.world.player; const pvp = this.world.mode === 'pvp'; show('duel-hud', pvp && this.net.active); $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores); $('duel-round').textContent = `DUELO ${this.activeRound}`; $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SEU COMPANHEIRO'; $('level-progress').parentElement.classList.toggle('hidden', pvp); $('hero-name').textContent = this.net.active ? p.name : 'KAEL'; $('health-fill').style.width = `${p.hp}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / 100`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = ['01 — LIMIAR DA FLORESTA', '02 — RUÍNAS DO VÉU', '03 — SANTUÁRIO DA CHAMA']; $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'A floresta está em paz' : this.world.bossActive ? 'Derrote o Guardião Ancestral' : this.net.active && p.x > 3780 ? 'Aguarde seu companheiro no santuário' : 'Atravesse a floresta →'; if (pvp) {
+        $('area-label').textContent = 'ARENA · SANTUÁRIO DA CHAMA';
+        $('objective-text').textContent = this.world.status === 'won' ? 'Duelo concluído' : 'Derrote seu adversário';
+    } for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {
         const el = $('cooldown' + i);
         el.style.display = p[key] > 0 ? 'flex' : 'none';
         el.textContent = Math.ceil(p[key]).toString();
         $('skill' + i).setAttribute('aria-label', `${i === 1 ? 'Corte solar' : 'Nova rúnica'}${p[key] > 0 ? `, recarrega em ${Math.ceil(p[key])} segundos` : `, disponível`}`);
-    } const boss = this.world.enemies.find(e => e.kind === 'boss'); $('boss-fill').style.width = `${boss.hp / boss.maxHp * 100}%`; $('boss-value').textContent = `${boss.hp} / ${boss.maxHp}`; show('boss-hud', this.world.bossActive && this.world.status === 'playing'); $('combo').innerHTML = this.world.hitCount >= 2 ? `${this.world.hitCount}<small>ACERTOS</small>` : ''; }
+    } const boss = this.world.enemies.find(e => e.kind === 'boss'); if (boss) {
+        $('boss-fill').style.width = `${boss.hp / boss.maxHp * 100}%`;
+        $('boss-value').textContent = `${boss.hp} / ${boss.maxHp}`;
+    } show('boss-hud', this.world.bossActive && this.world.status === 'playing'); $('combo').innerHTML = this.world.hitCount >= 2 ? `${this.world.hitCount}<small>ACERTOS</small>` : ''; }
 }
 try {
     new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 1280, height: 720, backgroundColor: '#0b2631', antialias: true, render: { roundPixels: false }, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ForestScene, input: { activePointers: 4 }, fps: { target: 60, forceSetTimeOut: false }, audio: { noAudio: true } });

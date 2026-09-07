@@ -8,14 +8,15 @@ export class Multiplayer {
  get id(){return this.room?.sessionId??'';}
  get active(){return !!this.room;}
  get canSimulate(){return this.connected&&this.snapshot?.stage==='playing'&&!this.snapshot?.paused&&this.snapshot?.status==='playing';}
- async connect(name:string,code=''){
+ async connect(name:string,code='',mode:'coop'|'pvp'='coop'){
    if(this.connecting||this.room)return;this.connecting=true;this.leaving=false;const generation=++this.generation;this.onConnection('connecting');
    try{
      const endpoint=window.EMBERFALL_MULTIPLAYER_URL;if(!endpoint)throw new Error('O modo cooperativo ainda está sendo preparado. Você já pode jogar a jornada solo.');
      const url=new URL(endpoint);if(!['http:','https:'].includes(url.protocol))throw new Error('Endereço do servidor inválido.');
      const response=await fetch(new URL('/health',url),{signal:AbortSignal.timeout(75000)});if(!response.ok)throw new Error('O servidor está despertando. Tente novamente em instantes.');
+     const health=await response.json();if(!code&&mode==='pvp'&&!health.modes?.includes('pvp'))throw new Error('O servidor está recebendo o modo PvP. Tente novamente em instantes.');
      if(generation!==this.generation)return;
-     this.client=new Client(url.origin);const room=code?await this.client.joinById(code.toUpperCase(),{name}):await this.client.create('forest',{name});
+     this.client=new Client(url.origin);const room=code?await this.client.joinById(code.toUpperCase(),{name}):await this.client.create('forest',{name,mode});
      if(generation!==this.generation){await room.leave();return;}
      room.reconnection.minUptime=0;room.reconnection.maxDelay=2000;this.room=room;this.connected=true;this.seq=0;this.pending=[];this.round=-1;
      room.onMessage('lobby',(value:any)=>{this.lobby=value;this.onLobby(value);});
@@ -32,10 +33,11 @@ export class Multiplayer {
  }
  receive(s:any){
    if(!Array.isArray(s.players))return;this.snapshot=s;
+   if(s.paused)this.pending=[];
    if(s.round!==this.round){this.round=s.round;this.pending=[];}
    const ack=s.acks?.[this.id]??0;this.pending=this.pending.filter(p=>p.seq>ack);
    const own=s.players.find((p:any)=>p.id===this.id);
-   if(own){this.predictor=new World();this.predictor.status=s.status;this.predictor.players=s.players.map((p:any)=>({...p}));this.predictor.player=this.predictor.players.find(p=>p.id===this.id)!;this.predictor.time=s.time;this.predictor.bossActive=s.bossActive;this.predictor.enemies=[];for(const packet of this.pending)this.predict(packet.input,false);}
+   if(own){this.predictor=new World();this.predictor.mode=s.mode??'coop';this.predictor.predicting=true;this.predictor.status=s.status;this.predictor.players=s.players.map((p:any)=>({...p}));this.predictor.player=this.predictor.players.find(p=>p.id===this.id)!;this.predictor.time=s.time;this.predictor.bossActive=s.bossActive;this.predictor.enemies=[];for(const packet of this.pending)this.predict(packet.input,false);}
    this.onSnapshot(s);
  }
  predict(input:Input,emit:boolean){if(!this.predictor.player)return;this.predictor.time+=1/60;this.predictor.stepPlayer(1/60,input);const events=this.predictor.events.splice(0);this.predictor.projectiles=[];if(emit)this.onEvents(events.filter(e=>['jump','dash','slash','solar','nova'].includes(e.type)));}

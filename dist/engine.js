@@ -20,6 +20,9 @@ export class World {
     get checkpoint() { return this.player.checkpoint; }
     set checkpoint(v) { this.player.checkpoint = v; }
     constructor() {
+        this.mode = 'coop';
+        this.winnerId = null;
+        this.predicting = false;
         this.status = 'ready';
         this.time = 0;
         this.elapsed = 0;
@@ -35,18 +38,35 @@ export class World {
         this.enemies = specs.map(([kind, x, y], id) => ({ id, kind, x, y, home: x, baseY: y, hp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, maxHp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, dir: -1, timer: 1.1 + id * .13, windup: 0, flash: 0, knock: 0, phase: 0, active: false, dead: false, attackX: x }));
     }
     emit(type, extra = {}) { this.events.push({ type, playerId: this.player.id, ...extra }); }
-    start() { this.status = 'playing'; this.emit('toast', { text: 'A / D para mover · W / ↑ / Espaço para pulo duplo · F para atacar' }); }
+    start() { this.status = 'playing'; this.emit('toast', { text: 'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar' }); }
     damagePlayer(amount, sourceX) { const p = this.player; if (p.invincible > 0 || this.status !== 'playing')
-        return; p.hp = Math.max(0, p.hp - amount); p.invincible = 1.15; p.vx = (p.x >= sourceX ? 1 : -1) * 240; this.hitCount = 0; this.emit('hurt', { x: p.x, y: p.y - 65, value: amount }); if (p.hp <= 0) {
+        return; p.hp = Math.max(0, p.hp - amount); p.invincible = this.mode === 'pvp' ? .22 : 1.15; p.vx = (p.x >= sourceX ? 1 : -1) * 240; this.hitCount = 0; this.emit('hurt', { x: p.x, y: p.y - 65, value: amount }); if (p.hp <= 0) {
         p.vx = 0;
         p.vy = 0;
         p.y = platforms.filter(b => p.x > b.x && p.x < b.x + b.w && b.y >= p.y).sort((a, b) => a.y - b.y)[0]?.y ?? 615;
+        if (this.mode === 'pvp') {
+            this.winnerId = this.players.find(q => q.id !== p.id && q.hp > 0)?.id ?? null;
+            this.status = 'won';
+            this.emit('won');
+            return;
+        }
         this.emit('downed');
         if (this.players.every(p => p.hp <= 0)) {
             this.status = 'dead';
             this.emit('dead');
         }
     } }
+    hitOpponent(target, damage) {
+        const attacker = this.player;
+        if (this.mode !== 'pvp' || this.predicting || target.id === attacker.id || target.hp <= 0 || target.invincible > 0 || this.status !== 'playing')
+            return;
+        this.player = target;
+        this.damagePlayer(damage, attacker.x);
+        this.player = attacker;
+        attacker.hitCount++;
+        attacker.comboTime = 2.5;
+        attacker.bestCombo = Math.max(attacker.bestCombo, attacker.hitCount);
+    }
     hitEnemy(e, damage, dir) { if (e.dead || (e.kind === 'boss' && !this.bossActive))
         return; e.hp = Math.max(0, e.hp - damage); e.flash = .16; e.knock = dir * (e.kind === 'boss' ? 60 : 210); this.hitCount++; this.comboTime = 2.5; this.bestCombo = Math.max(this.bestCombo, this.hitCount); this.emit('hit', { x: e.x, y: e.y - (e.kind === 'boss' ? 140 : 60), value: damage, kind: e.kind }); if (e.hp <= 0) {
         e.dead = true;
@@ -86,6 +106,11 @@ export class World {
                 if (dx * p.dir > -35 && Math.abs(dx) < (e.kind === 'boss' ? 175 : 135) && dy < 115)
                     this.hitEnemy(e, [0, 22, 26, 38][this.comboStep], p.dir);
             }
+            for (const target of this.players) {
+                const dx = target.x - p.x;
+                if (dx * p.dir > -35 && Math.abs(dx) < 135 && Math.abs(target.y - p.y) < 115)
+                    this.hitOpponent(target, [0, 14, 18, 24][this.comboStep]);
+            }
         }
         if (action === 'skill1' && p.skill1 <= 0) {
             p.skill1 = 5;
@@ -102,6 +127,9 @@ export class World {
                 if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < 285)
                     this.hitEnemy(e, 76, e.x > p.x ? 1 : -1);
             }
+            for (const target of this.players)
+                if (Math.hypot(target.x - p.x, target.y - p.y) < 285)
+                    this.hitOpponent(target, 32);
         }
     }
     tryJump() { const p = this.player; if (p.jumpBuffer > 0 && (p.grounded || p.coyote > 0 || p.jumps < 2)) {
@@ -125,25 +153,28 @@ export class World {
         this.elapsed += dt;
         const selected = this.player;
         for (const p of this.players) {
+            if (this.status !== 'playing')
+                break;
             this.player = p;
             this.stepPlayer(dt, inputs[p.id] ?? {});
         }
         this.stepEnemies(dt);
         this.stepProjectiles(dt);
         this.stepPickups(dt);
-        for (const p of this.players) {
-            if (p.hp > 0)
-                continue;
-            const helper = this.players.find(q => q.hp > 0 && Math.hypot(q.x - p.x, q.y - p.y) < 95);
-            p.revive = helper ? p.revive + dt : 0;
-            if (p.revive >= 2.5) {
-                this.player = p;
-                p.hp = 40;
-                p.invincible = 2;
-                p.revive = 0;
-                this.emit('revived', { x: p.x, y: p.y - 90 });
+        if (this.mode !== 'pvp')
+            for (const p of this.players) {
+                if (p.hp > 0)
+                    continue;
+                const helper = this.players.find(q => q.hp > 0 && Math.hypot(q.x - p.x, q.y - p.y) < 95);
+                p.revive = helper ? p.revive + dt : 0;
+                if (p.revive >= 2.5) {
+                    this.player = p;
+                    p.hp = 40;
+                    p.invincible = 2;
+                    p.revive = 0;
+                    this.emit('revived', { x: p.x, y: p.y - 90 });
+                }
             }
-        }
         this.player = selected;
     }
     stepPlayer(dt, input = {}) {
@@ -173,7 +204,7 @@ export class World {
         const oldY = p.y;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.x = Math.max(this.bossActive ? 3850 : 24, Math.min(LEVEL_WIDTH - 50, p.x));
+        p.x = Math.max(this.mode === 'pvp' || this.bossActive ? 3850 : 24, Math.min(LEVEL_WIDTH - 50, p.x));
         p.grounded = false;
         if (p.vy >= 0)
             for (const b of platforms) {
@@ -197,6 +228,10 @@ export class World {
             p.vx = 0;
             p.jumps = 0;
             this.emit('toast', { text: 'Cuidado com os abismos. Use o pulo duplo e o dash.' });
+        }
+        if (this.mode === 'pvp') {
+            p.zone = 2;
+            return;
         }
         if (!this.bossActive && p.grounded && p.x > 2000 && p.x < 2250)
             this.checkpoint = 2030;
@@ -314,6 +349,14 @@ export class World {
             s.life -= dt;
             if (s.friendly) {
                 this.player = this.players.find(p => p.id === s.owner) ?? this.players[0];
+                if (!this.player)
+                    continue;
+                for (const target of this.players) {
+                    if (target.id !== s.owner && target.hp > 0 && !s.hits.has(target.id) && Math.abs(s.x - target.x) < 45 && Math.abs(s.y - (target.y - 50)) < 65) {
+                        s.hits.add(target.id);
+                        this.hitOpponent(target, 26);
+                    }
+                }
                 for (const e of this.enemies) {
                     if (!e.dead && !s.hits.has(e.id) && Math.abs(s.x - e.x) < (e.kind === 'boss' ? 100 : 55) && Math.abs(s.y - (e.y - (e.kind === 'boss' ? 100 : 40))) < 110) {
                         s.hits.add(e.id);

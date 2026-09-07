@@ -26,7 +26,7 @@ export class Multiplayer {
     get id() { return this.room?.sessionId ?? ''; }
     get active() { return !!this.room; }
     get canSimulate() { return this.connected && this.snapshot?.stage === 'playing' && !this.snapshot?.paused && this.snapshot?.status === 'playing'; }
-    async connect(name, code = '') {
+    async connect(name, code = '', mode = 'coop') {
         if (this.connecting || this.room)
             return;
         this.connecting = true;
@@ -43,10 +43,13 @@ export class Multiplayer {
             const response = await fetch(new URL('/health', url), { signal: AbortSignal.timeout(75000) });
             if (!response.ok)
                 throw new Error('O servidor está despertando. Tente novamente em instantes.');
+            const health = await response.json();
+            if (!code && mode === 'pvp' && !health.modes?.includes('pvp'))
+                throw new Error('O servidor está recebendo o modo PvP. Tente novamente em instantes.');
             if (generation !== this.generation)
                 return;
             this.client = new Client(url.origin);
-            const room = code ? await this.client.joinById(code.toUpperCase(), { name }) : await this.client.create('forest', { name });
+            const room = code ? await this.client.joinById(code.toUpperCase(), { name }) : await this.client.create('forest', { name, mode });
             if (generation !== this.generation) {
                 await room.leave();
                 return;
@@ -93,6 +96,8 @@ export class Multiplayer {
         if (!Array.isArray(s.players))
             return;
         this.snapshot = s;
+        if (s.paused)
+            this.pending = [];
         if (s.round !== this.round) {
             this.round = s.round;
             this.pending = [];
@@ -102,6 +107,8 @@ export class Multiplayer {
         const own = s.players.find((p) => p.id === this.id);
         if (own) {
             this.predictor = new World();
+            this.predictor.mode = s.mode ?? 'coop';
+            this.predictor.predicting = true;
             this.predictor.status = s.status;
             this.predictor.players = s.players.map((p) => ({ ...p }));
             this.predictor.player = this.predictor.players.find(p => p.id === this.id);

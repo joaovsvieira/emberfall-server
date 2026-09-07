@@ -11,6 +11,7 @@ export const platforms:Platform[]=[
 export function createPlayer(id='solo',name='Kael',x=190){return {id,name,x,y:615,vx:0,vy:0,dir:1,hp:100,grounded:true,jumps:0,invincible:0,dash:0,dashCooldown:0,attack:0,attackCooldown:0,skill1:0,skill2:0,coyote:.1,jumpBuffer:0,hitCount:0,bestCombo:0,comboTime:0,comboStep:0,lastAttack:-10,checkpoint:190,revive:0,zone:0};}
 export type Player=ReturnType<typeof createPlayer>;
 export class World {
+ mode:'coop'|'pvp'='coop'; winnerId:string|null=null; predicting=false;
  status:'ready'|'playing'|'dead'|'won'='ready'; time=0; elapsed=0; kills=0; bossActive=false; events:GameEvent[]=[];
  player=createPlayer(); players:Player[]=[this.player];
  get zone(){return this.player.zone;} set zone(v:number){this.player.zone=v;}
@@ -21,29 +22,34 @@ export class World {
  get lastAttack(){return this.player.lastAttack;} set lastAttack(v:number){this.player.lastAttack=v;}
  get checkpoint(){return this.player.checkpoint;} set checkpoint(v:number){this.player.checkpoint=v;}
 
- enemies:Enemy[]=[]; projectiles:{x:number;y:number;vx:number;vy:number;life:number;friendly:boolean;owner?:string;hits:Set<number>}[]=[]; pickups:{x:number;y:number;life:number}[]=[];
+ enemies:Enemy[]=[]; projectiles:{x:number;y:number;vx:number;vy:number;life:number;friendly:boolean;owner?:string;hits:Set<number|string>}[]=[]; pickups:{x:number;y:number;life:number}[]=[];
  constructor(){
    const specs:[string,number,number][]=[['goblin',760,615],['goblin',1030,615],['bat',1480,492],['goblin',1630,615],['wraith',1900,490],['goblin',2190,615],['bat',2690,450],['wraith',2850,505],['goblin',3460,615],['bat',3640,460],['boss',4390,615]];
    this.enemies=specs.map(([kind,x,y],id)=>({id,kind,x,y,home:x,baseY:y,hp:kind==='boss'?480:kind==='bat'?34:kind==='wraith'?65:52,maxHp:kind==='boss'?480:kind==='bat'?34:kind==='wraith'?65:52,dir:-1,timer:1.1+id*.13,windup:0,flash:0,knock:0,phase:0,active:false,dead:false,attackX:x}));
  }
  emit(type:string,extra:Partial<GameEvent>={}){this.events.push({type,playerId:this.player.id,...extra});}
- start(){this.status='playing';this.emit('toast',{text:'A / D para mover · W / ↑ / Espaço para pulo duplo · F para atacar'});}
- damagePlayer(amount:number,sourceX:number){const p=this.player;if(p.invincible>0||this.status!=='playing')return;p.hp=Math.max(0,p.hp-amount);p.invincible=1.15;p.vx=(p.x>=sourceX?1:-1)*240;this.hitCount=0;this.emit('hurt',{x:p.x,y:p.y-65,value:amount});if(p.hp<=0){p.vx=0;p.vy=0;p.y=platforms.filter(b=>p.x>b.x&&p.x<b.x+b.w&&b.y>=p.y).sort((a,b)=>a.y-b.y)[0]?.y??615;this.emit('downed');if(this.players.every(p=>p.hp<=0)){this.status='dead';this.emit('dead');}}}
+ start(){this.status='playing';this.emit('toast',{text:'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar'});}
+ damagePlayer(amount:number,sourceX:number){const p=this.player;if(p.invincible>0||this.status!=='playing')return;p.hp=Math.max(0,p.hp-amount);p.invincible=this.mode==='pvp'?.22:1.15;p.vx=(p.x>=sourceX?1:-1)*240;this.hitCount=0;this.emit('hurt',{x:p.x,y:p.y-65,value:amount});if(p.hp<=0){p.vx=0;p.vy=0;p.y=platforms.filter(b=>p.x>b.x&&p.x<b.x+b.w&&b.y>=p.y).sort((a,b)=>a.y-b.y)[0]?.y??615;if(this.mode==='pvp'){this.winnerId=this.players.find(q=>q.id!==p.id&&q.hp>0)?.id??null;this.status='won';this.emit('won');return;}this.emit('downed');if(this.players.every(p=>p.hp<=0)){this.status='dead';this.emit('dead');}}}
+ hitOpponent(target:Player,damage:number){
+   const attacker=this.player;if(this.mode!=='pvp'||this.predicting||target.id===attacker.id||target.hp<=0||target.invincible>0||this.status!=='playing')return;
+   this.player=target;this.damagePlayer(damage,attacker.x);this.player=attacker;
+   attacker.hitCount++;attacker.comboTime=2.5;attacker.bestCombo=Math.max(attacker.bestCombo,attacker.hitCount);
+ }
  hitEnemy(e:Enemy,damage:number,dir:number){if(e.dead||(e.kind==='boss'&&!this.bossActive))return;e.hp=Math.max(0,e.hp-damage);e.flash=.16;e.knock=dir*(e.kind==='boss'?60:210);this.hitCount++;this.comboTime=2.5;this.bestCombo=Math.max(this.bestCombo,this.hitCount);this.emit('hit',{x:e.x,y:e.y-(e.kind==='boss'?140:60),value:damage,kind:e.kind});if(e.hp<=0){e.dead=true;this.kills++;this.emit('kill',{x:e.x,y:e.y-40,kind:e.kind});if(e.kind==='boss'){this.status='won';this.emit('won');}else this.pickups.push({x:e.x,y:e.y-40,life:30});}}
  action(action:Action){if(this.status!=='playing'||this.player.hp<=0)return;const p=this.player;
    if(action==='jump'){p.jumpBuffer=.13;this.tryJump();}
    if(action==='dash'&&p.dashCooldown<=0){p.dash=.19;p.dashCooldown=.85;p.invincible=Math.max(p.invincible,.25);this.emit('dash',{x:p.x,y:p.y-40,dir:p.dir});}
-   if(action==='attack'&&p.attackCooldown<=0){this.comboStep=this.time-this.lastAttack<.72?(this.comboStep%3)+1:1;this.lastAttack=this.time;p.attack=.24;p.attackCooldown=this.comboStep===3?.4:.27;this.emit('slash',{x:p.x,y:p.y-54,dir:p.dir,value:this.comboStep});for(const e of this.enemies){if(e.dead)continue;const dx=e.x-p.x,dy=Math.abs((e.y-(e.kind==='boss'?105:45))-(p.y-55));if(dx*p.dir>-35&&Math.abs(dx)<(e.kind==='boss'?175:135)&&dy<115)this.hitEnemy(e,[0,22,26,38][this.comboStep],p.dir);}}
+   if(action==='attack'&&p.attackCooldown<=0){this.comboStep=this.time-this.lastAttack<.72?(this.comboStep%3)+1:1;this.lastAttack=this.time;p.attack=.24;p.attackCooldown=this.comboStep===3?.4:.27;this.emit('slash',{x:p.x,y:p.y-54,dir:p.dir,value:this.comboStep});for(const e of this.enemies){if(e.dead)continue;const dx=e.x-p.x,dy=Math.abs((e.y-(e.kind==='boss'?105:45))-(p.y-55));if(dx*p.dir>-35&&Math.abs(dx)<(e.kind==='boss'?175:135)&&dy<115)this.hitEnemy(e,[0,22,26,38][this.comboStep],p.dir);}for(const target of this.players){const dx=target.x-p.x;if(dx*p.dir>-35&&Math.abs(dx)<135&&Math.abs(target.y-p.y)<115)this.hitOpponent(target,[0,14,18,24][this.comboStep]);}}
    if(action==='skill1'&&p.skill1<=0){p.skill1=5;p.attack=.4;this.projectiles.push({x:p.x+p.dir*50,y:p.y-60,vx:p.dir*760,vy:0,life:.9,friendly:true,owner:p.id,hits:new Set()});this.emit('solar',{x:p.x,y:p.y-60,dir:p.dir});}
-   if(action==='skill2'&&p.skill2<=0){p.skill2=10;p.attack=.45;p.invincible=Math.max(p.invincible,.5);this.emit('nova',{x:p.x,y:p.y-45});for(const e of this.enemies){if(!e.dead&&Math.hypot(e.x-p.x,e.y-p.y)<285)this.hitEnemy(e,76,e.x>p.x?1:-1);}}
+   if(action==='skill2'&&p.skill2<=0){p.skill2=10;p.attack=.45;p.invincible=Math.max(p.invincible,.5);this.emit('nova',{x:p.x,y:p.y-45});for(const e of this.enemies){if(!e.dead&&Math.hypot(e.x-p.x,e.y-p.y)<285)this.hitEnemy(e,76,e.x>p.x?1:-1);}for(const target of this.players)if(Math.hypot(target.x-p.x,target.y-p.y)<285)this.hitOpponent(target,32);}
  }
  tryJump(){const p=this.player;if(p.jumpBuffer>0&&(p.grounded||p.coyote>0||p.jumps<2)){if(!p.grounded&&p.coyote<=0&&p.jumps===0)p.jumps=1;if(p.jumps>=2)return;p.vy=p.jumps===0?-580:-545;p.jumps++;p.grounded=false;p.coyote=0;p.jumpBuffer=0;this.emit('jump',{x:p.x,y:p.y,value:p.jumps});}}
  update(dt:number,input:Input={}){this.updateCoop(dt,{[this.player.id]:input});}
  updateCoop(dt:number,inputs:Record<string,Input>={}){
    if(this.status!=='playing')return;dt=Math.min(dt,.034);this.time+=dt;this.elapsed+=dt;const selected=this.player;
-   for(const p of this.players){this.player=p;this.stepPlayer(dt,inputs[p.id]??{});}
+   for(const p of this.players){if(this.status!=='playing')break;this.player=p;this.stepPlayer(dt,inputs[p.id]??{});}
    this.stepEnemies(dt);this.stepProjectiles(dt);this.stepPickups(dt);
-   for(const p of this.players){if(p.hp>0)continue;const helper=this.players.find(q=>q.hp>0&&Math.hypot(q.x-p.x,q.y-p.y)<95);p.revive=helper?p.revive+dt:0;if(p.revive>=2.5){this.player=p;p.hp=40;p.invincible=2;p.revive=0;this.emit('revived',{x:p.x,y:p.y-90});}}
+   if(this.mode!=='pvp')for(const p of this.players){if(p.hp>0)continue;const helper=this.players.find(q=>q.hp>0&&Math.hypot(q.x-p.x,q.y-p.y)<95);p.revive=helper?p.revive+dt:0;if(p.revive>=2.5){this.player=p;p.hp=40;p.invincible=2;p.revive=0;this.emit('revived',{x:p.x,y:p.y-90});}}
    this.player=selected;
  }
  stepPlayer(dt:number,input:Input={}){const p=this.player;if(p.hp<=0)return;
@@ -52,10 +58,11 @@ export class World {
    for(const a of input.actions??[])this.action(a);if(input.attack)this.action('attack');
    const move=(input.right?1:0)-(input.left?1:0);if(move&&p.dash<=0)p.dir=move;
    if(p.dash>0){p.vx=p.dir*850;p.vy=0;}else{p.vx+=(move*290-p.vx)*Math.min(1,dt*(p.grounded?18:9));p.vy+=1510*dt;}
-   const oldY=p.y;p.x+=p.vx*dt;p.y+=p.vy*dt;p.x=Math.max(this.bossActive?3850:24,Math.min(LEVEL_WIDTH-50,p.x));p.grounded=false;
+   const oldY=p.y;p.x+=p.vx*dt;p.y+=p.vy*dt;p.x=Math.max(this.mode==='pvp'||this.bossActive?3850:24,Math.min(LEVEL_WIDTH-50,p.x));p.grounded=false;
    if(p.vy>=0)for(const b of platforms){if(p.x+17>b.x&&p.x-17<b.x+b.w&&oldY<=b.y+2&&p.y>=b.y){p.y=b.y;p.vy=0;p.grounded=true;p.jumps=0;p.coyote=.1;break;}}
    if(p.jumpBuffer>0)this.tryJump();
    if(p.y>850){p.invincible=0;this.damagePlayer(16,p.x);p.x=this.checkpoint;p.y=p.hp>0?430:615;p.vy=0;p.vx=0;p.jumps=0;this.emit('toast',{text:'Cuidado com os abismos. Use o pulo duplo e o dash.'});}
+   if(this.mode==='pvp'){p.zone=2;return;}
    if(!this.bossActive&&p.grounded&&p.x>2000&&p.x<2250)this.checkpoint=2030;
    if(!this.bossActive&&p.grounded&&p.x>3350&&p.x<3650)this.checkpoint=3390;
    const zone=p.x<1600?0:p.x<3800?1:2;if(zone!==this.zone){this.zone=zone;this.emit('zone',{value:zone});}
@@ -70,7 +77,7 @@ export class World {
    }
  }
  stepProjectiles(dt:number){
-   for(const s of this.projectiles){s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;if(s.friendly){this.player=this.players.find(p=>p.id===s.owner)??this.players[0];for(const e of this.enemies){if(!e.dead&&!s.hits.has(e.id)&&Math.abs(s.x-e.x)<(e.kind==='boss'?100:55)&&Math.abs(s.y-(e.y-(e.kind==='boss'?100:40)))<110){s.hits.add(e.id);this.hitEnemy(e,58,Math.sign(s.vx));}}}else for(const p of this.players){if(p.hp>0&&Math.abs(s.x-p.x)<25&&Math.abs(s.y-(p.y-45))<48){this.player=p;this.damagePlayer(12,s.x);s.life=0;break;}}}
+   for(const s of this.projectiles){s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;if(s.friendly){this.player=this.players.find(p=>p.id===s.owner)??this.players[0];if(!this.player)continue;for(const target of this.players){if(target.id!==s.owner&&target.hp>0&&!s.hits.has(target.id)&&Math.abs(s.x-target.x)<45&&Math.abs(s.y-(target.y-50))<65){s.hits.add(target.id);this.hitOpponent(target,26);}}for(const e of this.enemies){if(!e.dead&&!s.hits.has(e.id)&&Math.abs(s.x-e.x)<(e.kind==='boss'?100:55)&&Math.abs(s.y-(e.y-(e.kind==='boss'?100:40)))<110){s.hits.add(e.id);this.hitEnemy(e,58,Math.sign(s.vx));}}}else for(const p of this.players){if(p.hp>0&&Math.abs(s.x-p.x)<25&&Math.abs(s.y-(p.y-45))<48){this.player=p;this.damagePlayer(12,s.x);s.life=0;break;}}}
    this.projectiles=this.projectiles.filter(s=>s.life>0);
  }
  stepPickups(dt:number){

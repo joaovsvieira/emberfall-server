@@ -91,3 +91,18 @@ As animações usam poucos quadros com movimento procedural. O jogo é otimizado
 ## Assets e licenças
 
 Arte e marca originais geradas para este projeto; sem assets de Grand Chase. Sons sintetizados localmente via Web Audio. Phaser é MIT (licença incorporada no arquivo distribuído); Colyseus e demais dependências mantêm as licenças de seus pacotes. Fontes web são opcionais e têm fallback de sistema.
+
+
+## Atualização 0.3 — PvP e controles
+
+- Clique esquerdo na área do jogo executa o combo; segurar repete os golpes. F não ataca mais.
+- Teclado, mouse e botões de habilidade só atuam durante a partida ativa. Em menus e pausa, os campos preservam digitação e atalhos nativos. Esc pausa durante a partida; use Continuar para retomar.
+- Duelo PvP cria uma sala privada para dois jogadores com o mesmo fluxo de código ou link de convite do cooperativo.
+- A arena usa o Santuário, sem monstros, com jogadores em lados opostos. Espada, corte solar e nova atingem apenas o adversário; não há reanimação ou cura de chefe.
+- Cada derrota soma uma vitória ao adversário no servidor. O anfitrião pode iniciar uma revanche ou encerrar a sala; a revanche restaura vida e habilidades e mantém o placar.
+- Quedas de conexão têm 25 segundos de tolerância com a partida pausada. Saída definitiva durante o duelo conta como desistência. Placar existe em memória enquanto a sala existir; encerrar a sala ou reiniciar o servidor encerra a sessão.
+- Links de convite usam `?room=CODIGO&mode=pvp` (ou `coop`). O modo real é definido pela sala no servidor.
+
+O repositório GitHub conectado ao Render é `joaovsvieira/emberfall-server`, branch `main`. O Render publica automaticamente alterações nessa branch. Como o deploy usa dependências de produção, execute `npm run build` e inclua `dist/` antes de publicar mudanças em `src/`.
+
+Validação: `npm test` cobre controles em menus/pausa, simulação solo/cooperativa e duas conexões WebSocket para PvP com revanche, placar, reconexão e desistência.

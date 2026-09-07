@@ -21,7 +21,7 @@ test('PvP rooms retain scores through rematches/reconnection, reject guest resta
  const server=await startServer(2576),rooms=[];
  t.after(async()=>{for(const r of rooms)try{await Promise.race([r.leave(),delay(300)])}catch{}await server.gracefullyShutdown(false)});
  const a=await new Client('http://127.0.0.1:2576').create('forest',{name:'Alpha',mode:'pvp'});rooms.push(a);
- function observe(r){const s={};r.onMessage('snapshot',v=>s.snapshot=v);r.onMessage('lobby',v=>s.lobby=v);for(const type of ['events','notice'])r.onMessage(type,()=>{});r.reconnection.minUptime=0;r.reconnection.maxDelay=300;r.onReconnect(()=>s.reconnected=true);r.onLeave(()=>s.left=true);r.send('sync');return s;}
+ function observe(r){const s={};r.onMessage('snapshot',v=>s.snapshot=v);r.onMessage('lobby',v=>s.lobby=v);for(const type of ['events','notice','session-ended'])r.onMessage(type,()=>{});r.reconnection.minUptime=0;r.reconnection.maxDelay=300;r.onReconnect(()=>s.reconnected=true);r.onLeave(()=>s.left=true);r.send('sync');return s;}
  const sa=observe(a),b=await new Client('http://127.0.0.1:2576').joinById(a.roomId,{name:'Beta',mode:'coop'});rooms.push(b);const sb=observe(b);
  await until(()=>sa.lobby?.members.length===2,'lobby');assert.equal(sa.lobby.mode,'pvp');
  a.send('ready',true);b.send('ready',true);await until(()=>sa.lobby.members.every(m=>m.ready),'ready');a.send('start');await until(()=>sa.snapshot?.status==='playing','start');
@@ -34,4 +34,17 @@ test('PvP rooms retain scores through rematches/reconnection, reject guest resta
  b.connection.close(CloseCode.MAY_TRY_RECONNECT);await until(()=>sb.reconnected,'reconnect');assert.deepEqual(room.snapshot().scores.map(p=>p.wins),[1,0]);
  await until(()=>room.world.status==='playing','second round');await b.leave();await until(()=>sa.snapshot.result?.reason==='forfeit','forfeit');assert.deepEqual(sa.snapshot.scores.map(p=>p.wins),[2,0]);a.send('restart');await delay(100);assert.equal(room.round,2);
  a.send('close');await until(()=>sa.left,'room close');await until(()=>!matchMaker.getLocalRoomById(a.roomId),'room disposed');
+});
+
+
+test('closing PvP preserves the guest final result and never changes its game mode',{timeout:12000},async t=>{
+ const server=await startServer(2578),rooms=[];
+ t.after(async()=>{for(const r of rooms)try{await Promise.race([r.leave(),delay(200)])}catch{}await server.gracefullyShutdown(false)});
+ const a=await new Client('http://127.0.0.1:2578').create('forest',{name:'Host',mode:'pvp',hero:'lyra'});rooms.push(a);
+ const sa={};for(const type of ['lobby','snapshot','session-ended'])a.onMessage(type,v=>sa[type]=v);for(const type of ['events','notice'])a.onMessage(type,()=>{});
+ const b=await new Client('http://127.0.0.1:2578').joinById(a.roomId,{name:'Guest',hero:'kael'});rooms.push(b);const sb={};for(const type of ['lobby','snapshot','session-ended'])b.onMessage(type,v=>sb[type]=v);for(const type of ['events','notice'])b.onMessage(type,()=>{});b.onLeave(()=>sb.left=true);
+ a.send('sync');b.send('sync');await until(()=>sa.lobby?.members.length===2,'join');a.send('ready',true);b.send('ready',true);await until(()=>sa.lobby.members.every(m=>m.ready),'ready');a.send('start');await until(()=>sa.snapshot?.status==='playing','start');
+ const room=matchMaker.getLocalRoomById(a.roomId);room.world.players[0].x=4200;room.world.players[1].x=4250;room.world.players[1].hp=1;room.world.player=room.world.players[0];room.world.hitOpponent(room.world.players[1],10);room.recordResult();
+ await until(()=>sb.snapshot?.result,'result');a.send('close');await until(()=>sb.left&&sb['session-ended'],'guest ended');
+ const final=sb['session-ended'];assert.equal(final.mode,'pvp');assert.equal(final.status,'won');assert.equal(final.result.winnerId,a.sessionId);assert.equal(final.enemies.length,0);assert.equal(final.players.find(p=>p.id===b.sessionId).hp,0);assert.deepEqual(final.scores.map(p=>p.wins),[1,0]);
 });

@@ -106,3 +106,20 @@ Arte e marca originais geradas para este projeto; sem assets de Grand Chase. Son
 O repositório GitHub conectado ao Render é `joaovsvieira/emberfall-server`, branch `main`. O Render publica automaticamente alterações nessa branch. Como o deploy usa dependências de produção, execute `npm run build` e inclua `dist/` antes de publicar mudanças em `src/`.
 
 Validação: `npm test` cobre controles em menus/pausa, simulação solo/cooperativa e duas conexões WebSocket para PvP com revanche, placar, reconexão e desistência.
+
+
+## Atualização 0.4 — Lyra e Caldeira de Obsidiana
+
+Escolha Kael ou Lyra no menu inicial. A preferência é salva neste navegador e enviada ao servidor ao entrar em uma sala; cada jogador pode escolher seu próprio herói.
+
+Lyra é uma maga de fogo com ataque básico à distância, orbe incandescente (Q/U) e explosão ígnea (E/I). Seus projéteis não causam dano nem são bloqueados pelo companheiro no cooperativo. No PvP, o servidor valida dano, cooldowns e colisões.
+
+Ao vencer o primeiro chefe, escolha avançar ao capítulo II, reiniciar o capítulo ou voltar ao menu. No cooperativo, o anfitrião decide avançar e os dois entram juntos com seus heróis, vida e habilidades restauradas. Caldeira de Obsidiana tem plataformas diferentes, mais inimigos, chefe mais resistente/agressivo e saídas de vapor incandescente com aviso antes de causar dano. Reiniciar o capítulo II mantém a fase selecionada.
+
+O menu de pausa e as telas de resultado oferecem Menu principal. Quando alguém sai do cooperativo, o outro recebe um aviso com a partida pausada e pode continuar sozinho ou sair. Encerrar PvP retorna o anfitrião ao menu e preserva o resultado final no cliente convidado, que também pode voltar ao menu. A interface distingue sessão solo, online e menu; callbacks da conexão anterior são invalidados antes de limpar a cena.
+
+Arte original gerada com o recurso integrado de geração de imagens:
+- `dist/assets/lyra.png`: folha transparente 2×2, quatro poses completas de maga adulta com trança ruiva, roupa violeta, armadura de cobre e capa carmesim, voltada à direita; poses parada, duas corridas e conjuração de fogo. O jogo recorta as quatro células preservando transparência.
+- `dist/assets/caldera.png`: cenário lateral de cidadela vulcânica em obsidiana, arcos azul-violeta, lava distante e faixa contínua de basalto no chão; sem personagens, textos ou interface.
+
+Validação inclui testes de saída de todos os modos, mensagens tardias de salas antigas, resultado PvP ao encerrar, combate mágico, travessia da fase II e progressão cooperativa entre capítulos.

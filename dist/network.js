@@ -1,7 +1,9 @@
 import { Client } from './assets/colyseus.js';
 import { World } from './engine.js';
 export class Multiplayer {
-    constructor() {
+    constructor(makeClient = (url) => new Client(url)) {
+        this.makeClient = makeClient;
+        this.sessionId = '';
         this.room = null;
         this.client = null;
         this.snapshot = null;
@@ -16,6 +18,8 @@ export class Multiplayer {
         this.leaving = false;
         this.lastPing = 0;
         this.generation = 0;
+        this.onPartyLeft = () => { };
+        this.onSessionEnd = () => { };
         this.onLobby = () => { };
         this.onSnapshot = () => { };
         this.onEvents = () => { };
@@ -23,10 +27,10 @@ export class Multiplayer {
         this.onNotice = () => { };
     }
     get configured() { return !!window.EMBERFALL_MULTIPLAYER_URL; }
-    get id() { return this.room?.sessionId ?? ''; }
+    get id() { return this.sessionId; }
     get active() { return !!this.room; }
     get canSimulate() { return this.connected && this.snapshot?.stage === 'playing' && !this.snapshot?.paused && this.snapshot?.status === 'playing'; }
-    async connect(name, code = '', mode = 'coop') {
+    async connect(name, code = '', mode = 'coop', hero = 'kael') {
         if (this.connecting || this.room)
             return;
         this.connecting = true;
@@ -48,8 +52,8 @@ export class Multiplayer {
                 throw new Error('O servidor está recebendo o modo PvP. Tente novamente em instantes.');
             if (generation !== this.generation)
                 return;
-            this.client = new Client(url.origin);
-            const room = code ? await this.client.joinById(code.toUpperCase(), { name }) : await this.client.create('forest', { name, mode });
+            this.client = this.makeClient(url.origin);
+            const room = code ? await this.client.joinById(code.toUpperCase(), { name, hero }) : await this.client.create('forest', { name, mode, hero });
             if (generation !== this.generation) {
                 await room.leave();
                 return;
@@ -57,20 +61,37 @@ export class Multiplayer {
             room.reconnection.minUptime = 0;
             room.reconnection.maxDelay = 2000;
             this.room = room;
+            this.sessionId = room.sessionId;
             this.connected = true;
             this.seq = 0;
             this.pending = [];
             this.round = -1;
-            room.onMessage('lobby', (value) => { this.lobby = value; this.onLobby(value); });
-            room.onMessage('snapshot', (value) => this.receive(value));
-            room.onMessage('events', (events) => this.onEvents(events.filter(e => !(e.playerId === this.id && ['jump', 'dash', 'slash', 'solar', 'nova'].includes(e.type)))));
-            room.onMessage('notice', (value) => this.onNotice(value));
-            room.onMessage('pong', (value) => this.ping = Math.round(performance.now() - value));
-            room.onDrop(() => { this.connected = false; this.pending = []; this.onConnection('reconnecting'); });
-            room.onReconnect(() => { this.connected = true; this.pending = []; room.send('sync'); this.onConnection('connected'); });
-            room.onLeave(() => { this.connected = false; this.room = null; this.pending = []; if (!this.leaving)
+            const current = () => generation === this.generation && this.room === room && !this.leaving;
+            room.onMessage('party-left', (name) => { if (current())
+                this.onPartyLeft(name); });
+            room.onMessage('session-ended', (s) => { if (current()) {
+                this.receive(s);
+                this.onSessionEnd(s);
+            } });
+            room.onMessage('lobby', (value) => { if (!current())
+                return; this.lobby = value; this.onLobby(value); });
+            room.onMessage('snapshot', (value) => { if (current())
+                this.receive(value); });
+            room.onMessage('events', (events) => { if (current())
+                this.onEvents(events.filter(e => !(e.playerId === this.id && ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno'].includes(e.type)))); });
+            room.onMessage('notice', (value) => { if (current())
+                this.onNotice(value); });
+            room.onMessage('pong', (value) => { if (current())
+                this.ping = Math.round(performance.now() - value); });
+            room.onDrop(() => { if (!current())
+                return; this.connected = false; this.pending = []; this.onConnection('reconnecting'); });
+            room.onReconnect(() => { if (!current())
+                return; this.connected = true; this.pending = []; room.send('sync'); this.onConnection('connected'); });
+            room.onLeave(() => { if (!current())
+                return; this.connected = false; this.room = null; this.pending = []; if (!this.leaving)
                 this.onConnection('disconnected'); });
-            room.onError((_code, message) => this.onNotice(message || 'Não foi possível manter a conexão.'));
+            room.onError((_code, message) => { if (current())
+                this.onNotice(message || 'Não foi possível manter a conexão.'); });
             room.send('sync');
             this.onConnection('connected');
         }
@@ -106,7 +127,7 @@ export class Multiplayer {
         this.pending = this.pending.filter(p => p.seq > ack);
         const own = s.players.find((p) => p.id === this.id);
         if (own) {
-            this.predictor = new World();
+            this.predictor = new World(s.chapter ?? 1);
             this.predictor.mode = s.mode ?? 'coop';
             this.predictor.predicting = true;
             this.predictor.status = s.status;
@@ -122,7 +143,7 @@ export class Multiplayer {
     }
     predict(input, emit) { if (!this.predictor.player)
         return; this.predictor.time += 1 / 60; this.predictor.stepPlayer(1 / 60, input); const events = this.predictor.events.splice(0); this.predictor.projectiles = []; if (emit)
-        this.onEvents(events.filter(e => ['jump', 'dash', 'slash', 'solar', 'nova'].includes(e.type))); }
+        this.onEvents(events.filter(e => ['jump', 'dash', 'slash', 'solar', 'nova', 'fireball', 'inferno'].includes(e.type))); }
     step(input) {
         if (!this.room || !this.connected)
             return;
@@ -142,6 +163,11 @@ export class Multiplayer {
     }
     command(type, value) { if (this.room && this.connected)
         this.room.send(type, value); }
-    async leave() { this.leaving = true; this.generation++; this.connecting = false; const room = this.room; this.room = null; this.connected = false; this.pending = []; this.snapshot = null; this.lobby = null; if (room)
-        await room.leave(); }
+    async leave(closeRoom = false) { this.leaving = true; this.generation++; this.connecting = false; const room = this.room; if (closeRoom && room && this.connected)
+        room.send('close'); this.sessionId = ''; this.room = null; this.connected = false; this.pending = []; this.snapshot = null; this.lobby = null; if (room) {
+        try {
+            await Promise.race([room.leave(), new Promise(resolve => setTimeout(resolve, 1500))]);
+        }
+        catch { }
+    } }
 }

@@ -22,7 +22,7 @@ export const CHAPTERS={
  ] as Platform[]}
 };
 export type ChapterId=1|2|3;
-export function createPlayer(id='solo',name='Kael',x=190,hero:HeroId='kael'){return {id,name,hero,x,y:615,vx:0,vy:0,dir:1,hp:100,grounded:true,jumps:0,invincible:0,dash:0,dashCooldown:0,attack:0,attackCooldown:0,skill1:0,skill2:0,coyote:.1,jumpBuffer:0,hitCount:0,bestCombo:0,comboTime:0,comboStep:0,lastAttack:-10,checkpoint:190,revive:0,zone:0,shield:0,shieldTime:0};}
+export function createPlayer(id='solo',name='Kael',x=190,hero:HeroId='kael'){return {id,name,hero,x,y:615,vx:0,vy:0,dir:1,hp:100,maxHp:100,damage:100,defense:0,speed:100,attackSpeed:100,grounded:true,jumps:0,invincible:0,dash:0,dashCooldown:0,attack:0,attackCooldown:0,skill1:0,skill2:0,coyote:.1,jumpBuffer:0,hitCount:0,bestCombo:0,comboTime:0,comboStep:0,lastAttack:-10,checkpoint:190,revive:0,zone:0,shield:0,shieldTime:0};}
 export type Player=ReturnType<typeof createPlayer>;
 export class World {
  chapter:ChapterId;get level(){return CHAPTERS[this.chapter];}get platforms(){return this.level.platforms;}
@@ -48,20 +48,20 @@ export class World {
  }
  emit(type:string,extra:Partial<GameEvent>={}){this.events.push({type,playerId:this.player.id,...extra});}
  start(){this.status='playing';this.emit('toast',{text:'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar'});}
- damagePlayer(amount:number,sourceX:number){const p=this.player;if(p.invincible>0||this.status!=='playing')return;const absorbed=Math.min(p.shield,amount);p.shield-=absorbed;amount-=absorbed;if(absorbed)this.emit('blocked',{x:p.x,y:p.y-85,value:absorbed});p.hp=Math.max(0,p.hp-amount);p.invincible=this.mode==='pvp'?.22:1.15;p.vx=(p.x>=sourceX?1:-1)*240;this.hitCount=0;this.emit('hurt',{x:p.x,y:p.y-65,value:amount});if(p.hp<=0){p.vx=0;p.vy=0;p.y=this.platforms.filter(b=>p.x>b.x&&p.x<b.x+b.w&&b.y>=p.y).sort((a,b)=>a.y-b.y)[0]?.y??615;if(this.mode==='pvp'){this.winnerId=this.players.find(q=>q.id!==p.id&&q.hp>0)?.id??null;this.status='won';this.emit('won');return;}this.emit('downed');if(this.players.every(p=>p.hp<=0)){this.status='dead';this.emit('dead');}}}
+ damagePlayer(amount:number,sourceX:number){const p=this.player;if(p.invincible>0||this.status!=='playing')return;amount=Math.max(1,Math.round(amount*100/(100+p.defense)));const absorbed=Math.min(p.shield,amount);p.shield-=absorbed;amount-=absorbed;if(absorbed)this.emit('blocked',{x:p.x,y:p.y-85,value:absorbed});p.hp=Math.max(0,p.hp-amount);p.invincible=this.mode==='pvp'?.22:1.15;p.vx=(p.x>=sourceX?1:-1)*240;this.hitCount=0;this.emit('hurt',{x:p.x,y:p.y-65,value:amount});if(p.hp<=0){p.vx=0;p.vy=0;p.y=this.platforms.filter(b=>p.x>b.x&&p.x<b.x+b.w&&b.y>=p.y).sort((a,b)=>a.y-b.y)[0]?.y??615;if(this.mode==='pvp'){this.winnerId=this.players.find(q=>q.id!==p.id&&q.hp>0)?.id??null;this.status='won';this.emit('won');return;}this.emit('downed');if(this.players.every(p=>p.hp<=0)){this.status='dead';this.emit('dead');}}}
  hitOpponent(target:Player,damage:number){
    const attacker=this.player;if(this.mode!=='pvp'||this.predicting||target.id===attacker.id||target.hp<=0||target.invincible>0||this.status!=='playing')return;
-   this.player=target;this.damagePlayer(damage,attacker.x);this.player=attacker;
+   this.player=target;this.damagePlayer(Math.round(damage*attacker.damage/100),attacker.x);this.player=attacker;
    attacker.hitCount++;attacker.comboTime=2.5;attacker.bestCombo=Math.max(attacker.bestCombo,attacker.hitCount);
  }
- hitEnemy(e:Enemy,damage:number,dir:number){if(e.dead||(e.kind==='boss'&&!this.bossActive))return;e.hp=Math.max(0,e.hp-damage);e.flash=.16;e.knock=dir*(e.kind==='boss'?60:210);this.hitCount++;this.comboTime=2.5;this.bestCombo=Math.max(this.bestCombo,this.hitCount);this.emit('hit',{x:e.x,y:e.y-(e.kind==='boss'?140:60),value:damage,kind:e.kind});if(e.hp<=0){e.dead=true;this.kills++;this.emit('kill',{x:e.x,y:e.y-40,kind:e.kind});if(e.kind==='boss'){this.status='won';this.emit('won');}else this.pickups.push({x:e.x,y:e.y-40,life:30});}}
+ hitEnemy(e:Enemy,damage:number,dir:number){if(e.dead||(e.kind==='boss'&&!this.bossActive))return;damage=Math.round(damage*this.player.damage/100);e.hp=Math.max(0,e.hp-damage);e.flash=.16;e.knock=dir*(e.kind==='boss'?60:210);this.hitCount++;this.comboTime=2.5;this.bestCombo=Math.max(this.bestCombo,this.hitCount);this.emit('hit',{x:e.x,y:e.y-(e.kind==='boss'?140:60),value:damage,kind:e.kind});if(e.hp<=0){e.dead=true;this.kills++;this.emit('kill',{x:e.x,y:e.y-40,kind:e.kind});if(e.kind==='boss'){this.status='won';this.emit('won');}else this.pickups.push({x:e.x,y:e.y-40,life:30});}}
  action(action:Action){if(this.status!=='playing'||this.player.hp<=0)return;const p=this.player;
    if(action==='jump'){p.jumpBuffer=.13;this.tryJump();}
    if(action==='dash'&&p.dashCooldown<=0){p.dash=.19;p.dashCooldown=.85;p.invincible=Math.max(p.invincible,.25);this.emit('dash',{x:p.x,y:p.y-40,dir:p.dir});}
    if(p.hero==='aurel'){
      if(action==='attack'&&p.attackCooldown<=0){p.attack=.28;p.attackCooldown=.48;this.castBolt('light',20,12,610,1.05);return;}
      if(action==='skill1'&&p.skill1<=0){p.skill1=9;p.attack=.3;p.shield=this.mode==='pvp'?22:40;p.shieldTime=5;this.emit('shield',{x:p.x,y:p.y-55});return;}
-     if(action==='skill2'&&p.skill2<=0){p.skill2=12;p.attack=.45;this.emit('healingWave',{x:p.x,y:p.y-45});if(!this.predicting)for(const ally of this.players){if(ally.hp<=0||(this.mode==='pvp'&&ally.id!==p.id)||Math.hypot(ally.x-p.x,ally.y-p.y)>300)continue;const healed=Math.min(this.mode==='pvp'?22:35,100-ally.hp);ally.hp+=healed;if(healed)this.emit('heal',{playerId:ally.id,x:ally.x,y:ally.y-95,value:healed});}return;}
+     if(action==='skill2'&&p.skill2<=0){p.skill2=12;p.attack=.45;this.emit('healingWave',{x:p.x,y:p.y-45});if(!this.predicting)for(const ally of this.players){if(ally.hp<=0||(this.mode==='pvp'&&ally.id!==p.id)||Math.hypot(ally.x-p.x,ally.y-p.y)>300)continue;const healed=Math.min(this.mode==='pvp'?22:35,ally.maxHp-ally.hp);ally.hp+=healed;if(healed)this.emit('heal',{playerId:ally.id,x:ally.x,y:ally.y-95,value:healed});}return;}
    }
    if(p.hero==='sylva'){
      if(action==='attack'&&p.attackCooldown<=0){p.attack=.23;p.attackCooldown=.34;this.castBolt('arrow',21,12,900,1);return;}
@@ -82,16 +82,16 @@ export class World {
    if(this.status!=='playing')return;dt=Math.min(dt,.034);this.time+=dt;this.elapsed+=dt;const selected=this.player;
    for(const p of this.players){if(this.status!=='playing')break;this.player=p;this.stepPlayer(dt,inputs[p.id]??{});}
    if(this.status==='playing'){this.stepEnemies(dt);this.stepProjectiles(dt);this.stepPickups(dt);this.stepHazards();}
-   if(this.mode!=='pvp')for(const p of this.players){if(p.hp>0)continue;const helper=this.players.find(q=>q.hp>0&&Math.hypot(q.x-p.x,q.y-p.y)<95);p.revive=helper?p.revive+dt:0;if(p.revive>=2.5){this.player=p;p.hp=40;p.invincible=2;p.revive=0;this.emit('revived',{x:p.x,y:p.y-90});}}
+   if(this.mode!=='pvp')for(const p of this.players){if(p.hp>0)continue;const helper=this.players.find(q=>q.hp>0&&Math.hypot(q.x-p.x,q.y-p.y)<95);p.revive=helper?p.revive+dt:0;if(p.revive>=2.5){this.player=p;p.hp=Math.round(p.maxHp*.4);p.invincible=2;p.revive=0;this.emit('revived',{x:p.x,y:p.y-90});}}
    this.player=selected;
  }
  stepPlayer(dt:number,input:Input={}){const p=this.player;if(p.hp<=0)return;
-   for(const key of ['invincible','dash','dashCooldown','attack','attackCooldown','skill1','skill2','jumpBuffer','coyote','shieldTime'] as const)p[key]=Math.max(0,p[key]-dt);
+   for(const key of ['invincible','dash','dashCooldown','attack','attackCooldown','skill1','skill2','jumpBuffer','coyote','shieldTime'] as const)p[key]=Math.max(0,p[key]-dt*(key==='attackCooldown'?p.attackSpeed/100:1));
    if(p.shieldTime<=0)p.shield=0;
    this.comboTime-=dt;if(this.comboTime<=0)this.hitCount=0;
    for(const a of input.actions??[])this.action(a);if(input.attack)this.action('attack');
    const move=(input.right?1:0)-(input.left?1:0);if(move&&p.dash<=0)p.dir=move;
-   if(p.dash>0){p.vx=p.dir*850;p.vy=0;}else{p.vx+=(move*290-p.vx)*Math.min(1,dt*(p.grounded?18:9));p.vy+=1510*dt;}
+   if(p.dash>0){p.vx=p.dir*850;p.vy=0;}else{p.vx+=(move*290*p.speed/100-p.vx)*Math.min(1,dt*(p.grounded?18:9));p.vy+=1510*dt;}
    const oldY=p.y;p.x+=p.vx*dt;p.y+=p.vy*dt;p.x=Math.max(this.mode==='pvp'||this.bossActive?3850:24,Math.min(LEVEL_WIDTH-50,p.x));p.grounded=false;
    if(p.vy>=0)for(const b of this.platforms){if(p.x+17>b.x&&p.x-17<b.x+b.w&&oldY<=b.y+2&&p.y>=b.y){p.y=b.y;p.vy=0;p.grounded=true;p.jumps=0;p.coyote=.1;break;}}
    if(p.jumpBuffer>0)this.tryJump();
@@ -100,7 +100,7 @@ export class World {
    if(!this.bossActive&&p.grounded&&p.x>2000&&p.x<2250)this.checkpoint=2030;
    if(!this.bossActive&&p.grounded&&p.x>3350&&p.x<3650)this.checkpoint=3390;
    const zone=p.x<1600?0:p.x<3800?1:2;if(zone!==this.zone){this.zone=zone;this.emit('zone',{value:zone});}
-   if(p.x>3890&&!this.bossActive&&this.players.filter(p=>p.hp>0).every(p=>p.x>3780)){this.bossActive=true;for(const member of this.players){member.checkpoint=3930;member.hp=member.hp>0?Math.min(100,member.hp+35):0;}this.emit('boss');this.emit('toast',{text:`${this.level.boss} · Pule sobre as ondas e use o dash para esquivar.`});}
+   if(p.x>3890&&!this.bossActive&&this.players.filter(p=>p.hp>0).every(p=>p.x>3780)){this.bossActive=true;for(const member of this.players){member.checkpoint=3930;member.hp=member.hp>0?Math.min(member.maxHp,member.hp+35):0;}this.emit('boss');this.emit('toast',{text:`${this.level.boss} · Pule sobre as ondas e use o dash para esquivar.`});}
  }
  stepEnemies(dt:number){
    for(const e of this.enemies){if(e.dead)continue;const target=this.players.filter(p=>p.hp>0).sort((a,b)=>Math.abs(a.x-e.x)-Math.abs(b.x-e.x))[0];if(!target)continue;this.player=target;const p=target;e.flash=Math.max(0,e.flash-dt);e.knock*=Math.max(0,1-dt*10);e.x+=e.knock*dt;const dx=p.x-e.x,dy=Math.abs(p.y-e.y);e.active=e.kind==='boss'?this.bossActive:Math.abs(dx)<660;if(!e.active)continue;e.dir=dx>=0?1:-1;e.timer-=dt*(this.chapter===3?1.45:this.chapter===2?1.25:1);
@@ -118,7 +118,7 @@ export class World {
  hazardState(offset:number){const cycle=this.chapter===3?4.2:5,phase=(this.time+offset)%cycle;return phase>=cycle-.8?'active':phase>=cycle-1.8?'warning':'idle';}
  stepHazards(){if(this.predicting||this.status!=='playing')return;for(const h of this.hazards){if(this.hazardState(h.offset)!=='active')continue;for(const p of this.players){if(p.hp>0&&Math.abs(p.x-h.x)<55&&p.y>480){this.player=p;this.damagePlayer(this.chapter===3?24:18,h.x);}}}}
  stepPickups(dt:number){
-   for(const h of this.pickups){h.life-=dt;const p=this.players.filter(p=>p.hp>0).sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];if(!p)continue;this.player=p;if(Math.hypot(h.x-p.x,h.y-(p.y-45))<160){h.x+=(p.x-h.x)*dt*6;h.y+=(p.y-45-h.y)*dt*6;}if(Math.hypot(h.x-p.x,h.y-(p.y-45))<35){p.hp=Math.min(100,p.hp+12);h.life=0;this.emit('heal',{x:p.x,y:p.y-95,value:12});}}
+   for(const h of this.pickups){h.life-=dt;const p=this.players.filter(p=>p.hp>0).sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];if(!p)continue;this.player=p;if(Math.hypot(h.x-p.x,h.y-(p.y-45))<160){h.x+=(p.x-h.x)*dt*6;h.y+=(p.y-45-h.y)*dt*6;}if(Math.hypot(h.x-p.x,h.y-(p.y-45))<35){p.hp=Math.min(p.maxHp,p.hp+12);h.life=0;this.emit('heal',{x:p.x,y:p.y-95,value:12});}}
    this.pickups=this.pickups.filter(h=>h.life>0);
  }
 }

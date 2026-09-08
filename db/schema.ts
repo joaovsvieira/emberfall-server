@@ -1,7 +1,8 @@
-import {sqliteTable,text,integer} from 'drizzle-orm/sqlite-core';
+import {sql} from 'drizzle-orm';
+import {sqliteTable,text,integer,primaryKey,index,uniqueIndex} from 'drizzle-orm/sqlite-core';
 export const accounts=sqliteTable('accounts',{
  id:text('id').primaryKey(),username:text('username').notNull().unique(),displayName:text('display_name').notNull(),
- passwordHash:text('password_hash').notNull(),unlockedChapter:integer('unlocked_chapter').notNull().default(1),
+ gold:integer('gold').notNull().default(0),passwordHash:text('password_hash').notNull(),unlockedChapter:integer('unlocked_chapter').notNull().default(1),
  preferredHero:text('preferred_hero').notNull().default('kael'),createdAt:integer('created_at').notNull()
 });
 export const sessions=sqliteTable('sessions',{
@@ -10,3 +11,15 @@ export const sessions=sqliteTable('sessions',{
 export const completions=sqliteTable('completions',{
  id:text('id').primaryKey(),accountId:text('account_id').notNull().references(()=>accounts.id),chapter:integer('chapter').notNull(),createdAt:integer('created_at').notNull()
 });
+
+// Extended persistent systems. Atomic conditional batches in worker/game-data.mjs are part of the contract.
+export const heroProgress=sqliteTable('hero_progress',{accountId:text('account_id').notNull().references(()=>accounts.id),hero:text('hero').notNull(),xp:integer('xp').notNull().default(0)},t=>[primaryKey({columns:[t.accountId,t.hero]})]);
+export const items=sqliteTable('items',{id:text('id').primaryKey(),accountId:text('account_id').notNull().references(()=>accounts.id),hero:text('hero').notNull(),catalogId:text('catalog_id').notNull(),slot:text('slot').notNull(),equipped:integer('equipped').notNull().default(0),createdAt:integer('created_at').notNull()},t=>[index('items_owner').on(t.accountId,t.hero),uniqueIndex('equipped_slot').on(t.accountId,t.hero,t.slot).where(sql`${t.equipped}=1`)]);
+export const rewardEvents=sqliteTable('reward_events',{roundId:text('round_id').notNull().default(''),applied:integer('applied').notNull().default(0),id:text('id').primaryKey(),accountId:text('account_id').notNull().references(()=>accounts.id),hero:text('hero').notNull(),xp:integer('xp').notNull().default(0),gold:integer('gold').notNull().default(0),createdAt:integer('created_at').notNull()},t=>[index('reward_lookup').on(t.accountId,t.hero,t.roundId,t.applied)]);
+export const matches=sqliteTable('matches',{id:text('id').primaryKey(),mode:text('mode').notNull(),chapter:integer('chapter').notNull(),durationMs:integer('duration_ms').notNull(),outcome:text('outcome').notNull(),week:integer('week').notNull(),createdAt:integer('created_at').notNull()},t=>[index('match_rank').on(t.week,t.mode,t.chapter,t.outcome,t.durationMs)]);
+export const matchPlayers=sqliteTable('match_players',{matchId:text('match_id').notNull().references(()=>matches.id),accountId:text('account_id').notNull().references(()=>accounts.id),hero:text('hero').notNull(),name:text('name').notNull(),kills:integer('kills').notNull().default(0),outcome:text('outcome').notNull(),gold:integer('gold').notNull().default(0),itemId:text('item_id')},t=>[primaryKey({columns:[t.matchId,t.accountId]}),index('player_history').on(t.accountId,t.matchId)]);
+export const friendships=sqliteTable('friendships',{a:text('a').notNull().references(()=>accounts.id),b:text('b').notNull().references(()=>accounts.id),requester:text('requester').notNull().references(()=>accounts.id),status:text('status').notNull().default('pending'),createdAt:integer('created_at').notNull()},t=>[primaryKey({columns:[t.a,t.b]}),index('friends_b').on(t.b,t.status)]);
+export const chatMessages=sqliteTable('chat_messages',{id:integer('id').primaryKey({autoIncrement:true}),sender:text('sender').notNull().references(()=>accounts.id),recipient:text('recipient').references(()=>accounts.id),body:text('body').notNull(),createdAt:integer('created_at').notNull()},t=>[index('chat_global').on(t.recipient,t.id),index('chat_private').on(t.sender,t.recipient,t.id)]);
+export const presence=sqliteTable('presence',{accountId:text('account_id').notNull().references(()=>accounts.id),sessionHash:text('session_hash').notNull().references(()=>sessions.hash,{onDelete:'cascade'}),lastSeen:integer('last_seen').notNull()},t=>[primaryKey({columns:[t.accountId,t.sessionHash]}),index('presence_seen').on(t.lastSeen)]);
+export const listings=sqliteTable('listings',{id:text('id').primaryKey(),itemId:text('item_id').notNull().references(()=>items.id),seller:text('seller').notNull().references(()=>accounts.id),price:integer('price').notNull(),status:text('status').notNull().default('active'),createdAt:integer('created_at').notNull()},t=>[uniqueIndex('active_listing').on(t.itemId).where(sql`${t.status}='active'`),index('listings_active').on(t.status,t.createdAt)]);
+export const sales=sqliteTable('sales',{itemId:text('item_id').references(()=>items.id),seller:text('seller').references(()=>accounts.id),price:integer('price'),applied:integer('applied').notNull().default(0),id:text('id').primaryKey(),listingId:text('listing_id').notNull().unique().references(()=>listings.id),buyer:text('buyer').notNull().references(()=>accounts.id),hero:text('hero').notNull(),createdAt:integer('created_at').notNull()});

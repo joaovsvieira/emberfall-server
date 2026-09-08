@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@colyseus/core": "0.18.11",
+    "@colyseus/monitor": "^0.18.3",
     "@colyseus/sdk": "0.18.2",
     "@colyseus/ws-transport": "0.18.2",
     "express": "5.1.0"

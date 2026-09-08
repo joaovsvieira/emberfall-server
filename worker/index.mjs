@@ -1,3 +1,4 @@
+import {gameData} from './game-data.mjs';
 // Persistent data belongs to D1; only the game server may call this narrow API.
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 export async function dataOperation(db,op,v){
@@ -24,6 +25,7 @@ export async function dataOperation(db,op,v){
   }
   await db.batch(statements);return {ok:true};
  }
+ const result=await gameData(db,op,v);if(result!==undefined)return result;
  throw new Error('Unknown operation');
 }
 export default {async fetch(request,env){
@@ -31,7 +33,7 @@ export default {async fetch(request,env){
  if(url.pathname==='/internal/data'){
   if(!env.DATA_SERVICE_KEY||request.headers.get('Authorization')!==`Bearer ${env.DATA_SERVICE_KEY}`)return json({error:'Unauthorized'},401);
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
-  try{const body=await request.text();if(body.length>20000)return json({error:'Payload too large'},413);const {op,value}=JSON.parse(body);return json({value:await dataOperation(env.DB,op,value)});}catch(e){console.error('Database operation failed',e?.message);return json({error:/UNIQUE constraint/i.test(e?.message??'')?'conflict':'storage_unavailable'},/UNIQUE constraint/i.test(e?.message??'')?409:503);}
+  try{const body=await request.text();if(body.length>60000)return json({error:'Payload too large'},413);const {op,value}=JSON.parse(body);return json({value:await dataOperation(env.DB,op,value)});}catch(e){console.error('Database operation failed',e?.message);return json({error:e.status?e.message:/purchase_unavailable/.test(e?.message??'')?'Item vendido, saldo insuficiente ou compra inválida.':/item_unavailable/.test(e?.message??'')?'Este item não está disponível para venda.':/UNIQUE constraint/i.test(e?.message??'')?'Operação já realizada ou registro existente.':'storage_unavailable'},e.status??(/constraint|unavailable/.test(e?.message??'')?409:503));}
  }
  // Preserve same-origin HttpOnly sessions on the public game URL.
  const target=new URL(env.GAME_SERVER_URL||'https://emberfall-server.onrender.com');target.pathname=url.pathname;target.search=url.search;

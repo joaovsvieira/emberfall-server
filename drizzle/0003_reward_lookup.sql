@@ -1,0 +1,1 @@
+CREATE INDEX `reward_lookup` ON `reward_events` (`account_id`,`hero`,`round_id`,`applied`);

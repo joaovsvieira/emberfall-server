@@ -1,6 +1,6 @@
 # Emberfall — estado e continuidade
 
-Atualização 0.6: contas, mapa e menu de heróis. Leia também README.md e os testes antes de alterar o projeto.
+Atualização 0.8: amizades, chat, progressão, inventário, mercado, histórico, rankings e admin. Leia docs/GAME_SYSTEMS.md para regras, configuração e extensão. Leia também README.md e os testes antes de alterar o projeto.
 
 ## Identidade e direção
 
@@ -9,12 +9,12 @@ Emberfall — Ecos da Floresta é um jogo original de plataforma 2D e combate in
 ## Estado atual
 
 - Cadastro com usuário de 3–18 letras/números/_ e senha de 8–128 caracteres. Sessão HttpOnly por 30 dias; F5 restaura via /api/me. Não há recuperação de senha por e-mail nesta versão.
-- Menu: Loja (desabilitada), Heróis, Mapa, Histórico (desabilitado), Configurações.
-- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado) e Sylva (arqueira verde). Preferência do herói fica na conta. Nível 1 é a base; equipamentos, XP e árvore de desbloqueios ainda são espaços de interface sem economia funcional. Habilidades continuam disponíveis.
+- Menu desktop: Loja (desabilitada), Heróis, Histórico, Mapa, Mercado, Ranking, Configurações. Login/F5 sempre abre no mapa.
+- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado) e Sylva (arqueira verde). Preferência do herói fica na conta. XP/nível, equipamentos e inventário são individuais por herói; gold é da conta. Habilidades continuam disponíveis. Itens de outra classe ficam no herói que recebeu e só podem ser vendidos, nunca transferidos diretamente a outro herói.
 - Mapa tem floresta, caldeira e cidadela de gelo. Só capítulo I inicia liberado. Vitória PvE/solo libera o seguinte; PvP não libera. Cada participante precisa ter o mapa liberado, inclusive quem entra por convite.
 - Solo agora usa uma sala autoritativa para 1 pessoa, inicia automaticamente após autenticar. PvE começa com 2–4, todos prontos; PvP com 2. Cada mapa tem arena PvP sem inimigos ou perigos ambientais.
 - A/D/setas movem, W/cima/espaço pulam duas vezes, clique esquerdo ataca, Shift/K esquiva, Q/U e E/I são habilidades. Teclas só afetam a partida ativa. Escape pausa, menu oferece retorno.
-- Loja e Histórico estão desabilitados. Configurações: tela cheia, som, desconectar. Não adicionar pagamento/inventário sem pedido.
+- Loja premium permanece desabilitada. Mercado usa somente gold. Configurações: tela cheia, som, ID da conta e desconectar. Não há pagamento real.
 
 ## Arquitetura e publicação
 
@@ -25,7 +25,7 @@ Emberfall — Ecos da Floresta é um jogo original de plataforma 2D e combate in
 - server/accounts.mjs executa scrypt, autentica sessões, gera tickets curtos para partidas e controla rotas /api. Senhas e tokens nunca entram no código, armazenamento do navegador ou logs.
 - worker/index.mjs expõe /internal/data somente para a chave de serviço. Consultas preparadas e operações limitadas; nenhum endpoint público aceita vitórias ou SQL arbitrário.
 - DATA_SERVICE_KEY é segredo compartilhado gerenciado separadamente em Sites e Render; ACCOUNT_DATA_URL no Render aponta ao endpoint de dados do Site. GAME_SERVER_URL no Worker aponta ao Render. Não copiar valores de segredos para documentos ou Git.
-- db/schema.ts + Drizzle definem accounts, sessions, completions. Migrações em drizzle/ são aplicadas no publish do Sites. Após aplicar, nunca reescrever migrações antigas.
+- db/schema.ts + Drizzle definem contas, sessões, progresso, recompensas, itens, amizades, chat, histórico, presença e mercado. Migrações em drizzle/ são aplicadas no publish do Sites. Após aplicar, nunca reescrever migrações antigas.
 - dist/ é rastreado. Executar `npm run build` antes de publicar alterações em src/ ou worker/. O build também gera dist/server/index.js para Sites; Render bloqueia a rota estática /server.
 - Salas e partidas são temporárias; contas/capítulos ficam no D1 e sobrevivem aos deploys. Desbloqueios só são gravados por vitória simulada no servidor; uma falha de gravação aparece no resultado com opção de tentar novamente.
 
@@ -35,4 +35,12 @@ Testes cobrem física, combate, 4 clientes WebSocket, PvP, progresso, contas, se
 
 O usuário prefere implementação autônoma com atualização do GitHub e publicação, mantendo infraestrutura gratuita. Custos novos precisam ser discutidos. Preserve alterações feitas pelo usuário no repositório. Use as artes existentes como referência ao gerar novos assets. Não fazer testes de navegador sem pedido explícito; os testes de interface existentes usam fachadas em Node.
 
-Colyseus oferece Monitoring Panel e um Admin separado; nenhum está instalado/exposto neste projeto. Dados permanentes ficam no D1; o monitor de salas não substitui um painel de contas. Não abrir um painel administrativo público sem autenticação.
+Admin próprio em /admin consulta contas e sessões; monitor oficial @colyseus/monitor em /admin/monitor/. Ambos exigem sessão e ADMIN_ACCOUNT_IDS configurado no Render. Nunca retornar hashes ou promover usuário automaticamente. Consulte docs/GAME_SYSTEMS.md.
+
+## Regras da atualização 0.8
+
+- Modal final obrigatório, loot individual (gold + item), XP por morte confirmada no servidor. Recompensas idempotentes e compra/venda atômicas no D1.
+- Ranking semanal: segunda 00:00 Brasília; solo/equipe por tempo e fase, PvP por abates reais. Histórico preservado, paginação 20.
+- Amigos com solicitação/aceite e presença por sessão; global e privado persistentes. Aba guilda indisponível até criar guildas.
+- Inventário/catalogo ainda carregados inteiros no perfil; paginar antes de grandes volumes. Salas/retries temporários não sobrevivem ao encerramento do processo; veja limitações documentadas.
+- Publicar Worker/migração antes do frontend/API no Render. Não reescrever migrações aplicadas.

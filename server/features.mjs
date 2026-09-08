@@ -1,0 +1,17 @@
+import {createHash} from 'node:crypto';
+import {tokenOf} from './accounts.mjs';
+import {monitor} from '@colyseus/monitor';
+export function featureRoutes(app,accounts){
+ const limits=new Map();
+ const adminIds=()=>new Set((process.env.ADMIN_ACCOUNT_IDS??'').split(',').map(s=>s.trim()).filter(Boolean));
+ const guard=async(req,res,next)=>{try{const token=tokenOf(req),a=await accounts.session(token);if(!a)return res.status(401).json({error:'Faça login para continuar.'});req.account=a;req.sessionHash=createHash('sha256').update(token).digest('hex');next();}catch{res.status(503).json({error:'Não foi possível validar a sessão.'});}};
+ const admin=async(req,res,next)=>guard(req,res,()=>{if(!adminIds().has(req.account.id))return res.status(403).send('Acesso restrito. Configure ADMIN_ACCOUNT_IDS no Render com o ID da sua conta.');next();});
+ app.use('/api/game',guard);
+ app.use('/api/game',(req,res,next)=>{const now=Date.now(),id=req.account.id;let bucket=limits.get(id);if(!bucket||bucket.until<now){bucket={n:0,until:now+60000};limits.set(id,bucket);}if(++bucket.n>160)return res.status(429).json({error:'Muitas solicitações. Aguarde um momento.'});if(limits.size>10000)for(const [k,v] of limits)if(v.until<now)limits.delete(k);next();});
+ const routes={profile:['GET','game-profile'],equip:['POST','equip'],presence:['POST','presence'],friends:['GET','friends'],'friends/search':['GET','friend-search'],'friends/action':['POST','friend-action'],'chat':['GET','chat-read'],'chat/send':['POST','chat-send'],market:['GET','market-list'],'market/sell':['POST','market-sell'],'market/buy':['POST','market-buy'],'market/cancel':['POST','market-cancel'],history:['GET','history'],ranking:['GET','ranking']};
+ for(const [path,[method,op]] of Object.entries(routes))app[method.toLowerCase()]('/api/game/'+path,async(req,res)=>{try{const input=method==='GET'?req.query:req.body??{};const data=await accounts.store.call(op,{...input,id:req.account.id,session:req.sessionHash});res.json(data);}catch(e){res.status(e.status??503).json({error:e.status?e.message:'Não foi possível concluir. Tente novamente.'});}});
+ app.get('/api/admin',admin,async(req,res)=>{try{res.json(await accounts.store.call('admin',{q:req.query.q,page:req.query.page}));}catch{res.status(503).json({error:'Não foi possível consultar os dados.'});}});
+ app.use('/admin/monitor',admin,(req,res,next)=>{res.set('Cache-Control','no-store');if(req.headers['sec-fetch-site']==='cross-site')return res.sendStatus(403);if(!['GET','HEAD','OPTIONS'].includes(req.method)){const origin=req.headers.origin;if(origin&&origin!==`${req.protocol}://${req.get('host')}`&&!['https://emberfall-server.onrender.com','https://emberfall-ruinas.joaovsvieira-me.chatgpt.site'].includes(origin))return res.sendStatus(403);}next();},monitor());
+ app.get('/admin',admin,(_req,res)=>res.sendFile('admin.html',{root:new URL('../dist/',import.meta.url).pathname}));
+ app.get('/admin.html',admin,(_req,res)=>res.sendFile('admin.html',{root:new URL('../dist/',import.meta.url).pathname}));
+}

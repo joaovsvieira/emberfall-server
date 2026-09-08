@@ -5,6 +5,8 @@ export class Multiplayer {
         throw new Error(data.error ?? 'Faça login para jogar.'); return data.ticket; }) {
         this.makeClient = makeClient;
         this.ticketProvider = ticketProvider;
+        this.rewards = null;
+        this.onRewards = () => { };
         this.sessionId = '';
         this.room = null;
         this.client = null;
@@ -73,6 +75,10 @@ export class Multiplayer {
             this.pending = [];
             this.round = -1;
             const current = () => generation === this.generation && this.room === room && !this.leaving;
+            room.onMessage('rewards', (v) => { if (current()) {
+                this.rewards = v;
+                this.onRewards(v);
+            } });
             room.onMessage('progress-saved', () => { if (current())
                 this.onProgress(); });
             room.onMessage('party-left', (name) => { if (current())
@@ -129,6 +135,7 @@ export class Multiplayer {
             this.pending = [];
         if (s.round !== this.round) {
             this.round = s.round;
+            this.rewards = null;
             this.pending = [];
         }
         const ack = s.acks?.[this.id] ?? 0;
@@ -172,7 +179,7 @@ export class Multiplayer {
     command(type, value) { if (this.room && this.connected)
         this.room.send(type, value); }
     async leave(closeRoom = false) { this.leaving = true; this.generation++; this.connecting = false; const room = this.room; if (closeRoom && room && this.connected)
-        room.send('close'); this.sessionId = ''; this.room = null; this.connected = false; this.pending = []; this.snapshot = null; this.lobby = null; if (room) {
+        room.send('close'); this.sessionId = ''; this.room = null; this.connected = false; this.pending = []; this.snapshot = null; this.lobby = null; this.rewards = null; if (room) {
         try {
             await Promise.race([room.leave(), new Promise(resolve => setTimeout(resolve, 1500))]);
         }

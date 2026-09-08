@@ -1,3 +1,4 @@
+import {storage,migrate} from './helpers/storage.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -11,12 +12,6 @@ import {Client} from '@colyseus/sdk';
 import {matchMaker} from '@colyseus/core';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,label){const end=Date.now()+7000;while(Date.now()<end){if(fn())return;await delay(20);}assert.fail(label);}
-function storage(filename=':memory:'){
- const sqlite=new DatabaseSync(filename);sqlite.exec('PRAGMA foreign_keys=ON');
- const adapter={prepare(sql){return {bind(...params){return {first:async()=>sqlite.prepare(sql).get(...params)??null,run:async()=>sqlite.prepare(sql).run(...params)}}}},async batch(queries){sqlite.exec('BEGIN');try{const result=[];for(const q of queries)result.push(await q.run());sqlite.exec('COMMIT');return result;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};
- return {sqlite,async call(op,v){try{return await dataOperation(adapter,op,v);}catch(e){if(/UNIQUE constraint/.test(e.message))throw Object.assign(new Error('Este usuário já está cadastrado.'),{status:409});throw e;}}};
-}
-function migrate(store){store.sqlite.exec(readFileSync(new URL('../drizzle/0000_aberrant_star_brand.sql',import.meta.url),'utf8'));}
 test('data API rejects public access and proxy paths cannot forward credentials to another host',async t=>{
  const env={DATA_SERVICE_KEY:'only-server',GAME_SERVER_URL:'https://game.example'};
  assert.equal((await worker.fetch(new Request('https://site.example/internal/data',{method:'POST',body:'{}'}),env)).status,401);

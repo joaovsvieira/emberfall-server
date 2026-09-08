@@ -2,6 +2,7 @@ import {Client} from './assets/colyseus.js';
 import {World,type Input,type GameEvent,type HeroId} from './engine.js';
 declare global{interface Window{EMBERFALL_MULTIPLAYER_URL?:string;}}
 export class Multiplayer {
+ rewards:any=null;onRewards:(v:any)=>void=()=>{};
  sessionId='';room:any=null;client:any=null;snapshot:any=null;lobby:any=null;connected=false;connecting=false;ping=0;seq=0;pending:{seq:number;input:Input}[]=[];predictor=new World();round=-1;leaving=false;lastPing=0;generation=0;
  onPartyLeft:(name:string)=>void=()=>{};onSessionEnd:(s:any)=>void=()=>{};
  onProgress:()=>void=()=>{};
@@ -24,6 +25,7 @@ export class Multiplayer {
      if(generation!==this.generation){await room.leave();return;}
      room.reconnection.minUptime=0;room.reconnection.maxDelay=2000;this.room=room;this.sessionId=room.sessionId;this.connected=true;this.seq=0;this.pending=[];this.round=-1;
      const current=()=>generation===this.generation&&this.room===room&&!this.leaving;
+     room.onMessage('rewards',(v:any)=>{if(current()){this.rewards=v;this.onRewards(v);}});
      room.onMessage('progress-saved',()=>{if(current())this.onProgress();});
      room.onMessage('party-left',(name:string)=>{if(current())this.onPartyLeft(name);});
      room.onMessage('session-ended',(s:any)=>{if(current()){this.receive(s);this.onSessionEnd(s);}});
@@ -42,7 +44,7 @@ export class Multiplayer {
  receive(s:any){
    if(!Array.isArray(s.players))return;this.snapshot=s;
    if(s.paused)this.pending=[];
-   if(s.round!==this.round){this.round=s.round;this.pending=[];}
+   if(s.round!==this.round){this.round=s.round;this.rewards=null;this.pending=[];}
    const ack=s.acks?.[this.id]??0;this.pending=this.pending.filter(p=>p.seq>ack);
    const own=s.players.find((p:any)=>p.id===this.id);
    if(own){this.predictor=new World(s.chapter??1);this.predictor.mode=s.mode??'coop';this.predictor.predicting=true;this.predictor.status=s.status;this.predictor.players=s.players.map((p:any)=>({...p}));this.predictor.player=this.predictor.players.find(p=>p.id===this.id)!;this.predictor.time=s.time;this.predictor.bossActive=s.bossActive;this.predictor.enemies=[];for(const packet of this.pending)this.predict(packet.input,false);}
@@ -58,5 +60,5 @@ export class Multiplayer {
    this.pending.push(packet);if(this.pending.length>120)this.pending.shift();this.room.send('input',packet);this.predict(packet.input,true);
  }
  command(type:string,value?:any){if(this.room&&this.connected)this.room.send(type,value);}
- async leave(closeRoom=false){this.leaving=true;this.generation++;this.connecting=false;const room=this.room;if(closeRoom&&room&&this.connected)room.send('close');this.sessionId='';this.room=null;this.connected=false;this.pending=[];this.snapshot=null;this.lobby=null;if(room){try{await Promise.race([room.leave(),new Promise(resolve=>setTimeout(resolve,1500))]);}catch{}}}
+ async leave(closeRoom=false){this.leaving=true;this.generation++;this.connecting=false;const room=this.room;if(closeRoom&&room&&this.connected)room.send('close');this.sessionId='';this.room=null;this.connected=false;this.pending=[];this.snapshot=null;this.lobby=null;this.rewards=null;if(room){try{await Promise.race([room.leave(),new Promise(resolve=>setTimeout(resolve,1500))]);}catch{}}}
 }

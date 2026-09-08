@@ -2,6 +2,7 @@ import {Room, ServerError} from '@colyseus/core';
 import {randomInt,randomUUID} from 'node:crypto';
 import {World, createPlayer, HEROES} from '../dist/engine.js';
 
+import {lootPool,attributes,ITEMS} from './catalog.mjs';
 const codes=new Set();
 const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_ROOMS=32;
@@ -21,6 +22,7 @@ export function validateInput(packet,lastSeq){
 export class ForestRoom extends Room {
   maxClients=2;maxMessagesPerSecond=120;
   mode='coop';chapter=1;scores=new Map();result=null;scoredRound=0;closing=false;
+  participants=[];rewardCache=new Map();settlement=null;xpPending=false;xpSavedCount=0;finishedAt=0;
   roomCreatedAt=randomUUID();progress='idle';progressRound=0;progressIds=[];progressRetries=0;accounts=null;
   members=new Map();world=new World();host='';stage='lobby';round=0;tick=0;accumulator=0;countdownAt=0;
   async onCreate(options={}){
@@ -40,9 +42,10 @@ export class ForestRoom extends Room {
     this.onMessage('retry-progress',()=>{if(this.progress==='error')void this.saveProgress();});
     this.onMessage('close',(client)=>{if(client.sessionId===this.host){
       if(this.mode==='pvp'&&this.world.status==='playing'){this.world.winnerId=[...this.members.keys()].find(id=>id!==client.sessionId)??null;this.world.status='won';this.recordResult('forfeit');}
+      if(this.mode!=='pvp'&&this.stage==='playing'&&this.world.status==='playing'){for(const p of this.participants)p.departed=true;this.world.status='dead';this.recordResult('left');}
       this.closing=true;this.stage='ended';this.clearInputs();this.broadcast('session-ended',this.snapshot());this.disconnect();
     }});
-    this.onMessage('sync',(client)=>{client.send('lobby',this.lobby());client.send('snapshot',this.snapshot());});
+    this.onMessage('sync',(client)=>{client.send('lobby',this.lobby());client.send('snapshot',this.snapshot());if(this.rewardCache.has(client.sessionId))client.send('rewards',this.rewardCache.get(client.sessionId));});
     this.onMessage('ping',(client,value)=>{if(typeof value==='number'&&Number.isFinite(value))client.send('pong',value);});
     this.setSimulationInterval(delta=>this.advance(delta),1000/60);
     this.clock.setTimeout(()=>{if(this.stage==='lobby')this.disconnect();},10*60*1000);
@@ -54,25 +57,27 @@ export class ForestRoom extends Room {
     if(account.unlockedChapter<this.chapter)throw new ServerError(403,'Conclua o capítulo anterior para entrar neste mapa.');
     if(!account.heroes.some(h=>h.id===hero))throw new ServerError(403,'Você ainda não possui este herói.');
     if([...this.members.values()].some(m=>m.accountId===account.id))throw new ServerError(409,'Sua conta já está nesta sala.');
-    return {name:account.name,hero,accountId:account.id,unlockedChapter:account.unlockedChapter};
+    return {name:account.name,hero,accountId:account.id,unlockedChapter:account.unlockedChapter,stats:account.heroes.find(h=>h.id===hero)?.attributes??attributes(hero,0)};
   }
   onJoin(client,_options,auth){
     if(this.stage!=='lobby')throw new ServerError(409,'Esta partida já começou.');
     if(!this.host)this.host=client.sessionId;
     const index=this.members.size;
     if([...this.members.values()].some(m=>m.accountId===auth.accountId))throw new ServerError(409,'Sua conta já está nesta sala.');
-    this.members.set(client.sessionId,{id:client.sessionId,name:auth.name,hero:auth.hero,accountId:auth.accountId,unlockedChapter:auth.unlockedChapter,ready:false,connected:true,paused:false,index,lastSeq:0,ack:0,queue:[],input:{},lastSeen:Date.now()});
+    this.members.set(client.sessionId,{id:client.sessionId,name:auth.name,hero:auth.hero,accountId:auth.accountId,unlockedChapter:auth.unlockedChapter,stats:auth.stats,ready:false,connected:true,paused:false,index,lastSeq:0,ack:0,queue:[],input:{},lastSeen:Date.now()});
     this.scores.set(client.sessionId,{id:client.sessionId,name:auth.name,wins:0});
     this.sendLobby();
   }
   onDrop(client){this.clearInputs();const m=this.members.get(client.sessionId);if(m){m.connected=false;m.input={};m.queue=[];m.ack=m.lastSeq;}this.allowReconnection(client,25);this.sendLobby();}
-  onReconnect(client){const m=this.members.get(client.sessionId);if(m){m.connected=true;m.lastSeen=Date.now();m.input={};m.queue=[];}client.send('snapshot',this.snapshot());this.sendLobby();}
+  onReconnect(client){if(this.rewardCache.has(client.sessionId))client.send('rewards',this.rewardCache.get(client.sessionId));const m=this.members.get(client.sessionId);if(m){m.connected=true;m.lastSeen=Date.now();m.input={};m.queue=[];}client.send('snapshot',this.snapshot());this.sendLobby();}
   onLeave(client){
     if(this.closing){this.members.delete(client.sessionId);return;}
     const departed=this.members.get(client.sessionId);
+    if(this.stage==='playing'&&this.world.status==='playing'){const p=this.participants.find(p=>p.id===departed?.accountId);if(p){p.departed=true;p.earnedKills=this.deadEnemies();}}
     if(this.mode==='pvp'&&!this.closing&&this.stage==='playing'&&this.world.status==='playing'){
       this.world.winnerId=[...this.members.keys()].find(id=>id!==client.sessionId)??null;this.world.status='won';this.recordResult('forfeit');
     }
+    if(this.mode!=='pvp'&&this.stage==='playing'&&this.world.status==='playing'&&this.members.size===1){this.world.status='dead';this.recordResult('left');}
     this.members.delete(client.sessionId);if(this.round===0)this.scores.delete(client.sessionId);this.world.players=this.world.players.filter(p=>p.id!==client.sessionId);
     if(this.host===client.sessionId)this.host=this.members.keys().next().value??'';
     if(this.world.players.length){this.world.player=this.world.players[0];if(this.world.status==='playing'&&this.world.players.every(p=>p.hp<=0)){this.world.status='dead';this.world.emit('dead');}}
@@ -82,30 +87,50 @@ export class ForestRoom extends Room {
     if(this.mode==='coop'&&this.members.size&&this.stage==='playing')this.broadcast('party-left',departed?.name??'Seu companheiro');
     if(this.members.size&&this.stage==='playing'){this.broadcast('snapshot',this.snapshot());this.broadcast('notice',this.mode==='pvp'?'Seu adversário saiu. O placar permanece até encerrar a sala.':'Seu companheiro saiu da sala.');}
   }
+  async getInspectData(){return {roomId:this.roomId,maxClients:this.maxClients,metadata:{mode:this.mode,chapter:this.chapter,progress:this.progress},locked:this.locked,clients:this.clients.map(c=>({sessionId:c.sessionId,elapsedTime:this.clock.elapsedTime-c._joinedAt})),state:this.snapshot(),stateSize:Buffer.byteLength(JSON.stringify(this.snapshot()))};}
   onDispose(){codes.delete(this.roomId);}
   clearInputs(){for(const m of this.members.values()){m.input={};m.queue=[];m.ack=m.lastSeq;}}
   isPaused(){return [...this.members.values()].some(m=>m.paused||!m.connected);}
   lobby(){return {progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,code:this.roomId,host:this.host,stage:this.stage,round:this.round,countdown:this.stage==='countdown'?Math.max(0,Math.ceil((this.countdownAt-Date.now())/1000)):0,paused:this.isPaused(),members:[...this.members.values()].map(({id,name,hero,ready,connected,paused,index})=>({id,name,hero,ready,connected,paused,index}))};}
   sendLobby(){this.broadcast('lobby',this.lobby());}
   beginRound(chapter=this.chapter){
-    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
+    this.rewardCache.clear();this.settlement=null;this.xpSavedCount=0;this.finishedAt=0;this.participants=[...this.members.values()].map(m=>({id:m.accountId,sessionId:m.id,hero:m.hero,name:m.name,loot:lootPool(chapter)[randomInt(lootPool(chapter).length)].id}));
+    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);Object.assign(p,m.stats??attributes(m.hero,0));p.hp=p.maxHp;if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
     this.world.player=this.world.players[0];
     if(this.mode==='pvp')this.world.enemies=[];
     for(const e of this.world.enemies){e.hp=e.maxHp=Math.round(e.maxHp*(1+(this.world.players.length-1)*(e.kind==='boss'?.65:.35)));}
     this.stage='countdown';this.countdownAt=Date.now()+3000;this.sendLobby();this.broadcast('snapshot',this.snapshot());
   }
+  deadEnemies(){return this.world.enemies.filter(e=>e.dead).map(e=>({id:e.id,kind:e.kind}));}
+  payload(reason='knockout'){return {round:`${this.roomId}:${this.roomCreatedAt}:${this.round}`,chapter:this.chapter,mode:this.mode,duration:this.world.elapsed,outcome:this.world.status,finishedAt:this.finishedAt||Date.now(),reason,winner:this.members.get(this.world.winnerId)?.accountId,players:this.participants.map(p=>({...p})),kills:this.deadEnemies()};}
+  async flushXp(){
+    if(!this.accounts?.store||this.mode==='pvp'||this.xpPending)return;
+    const payload=this.payload(),count=payload.kills.length,round=this.round;if(count===this.xpSavedCount)return;
+    this.xpPending=true;try{await this.accounts.store.call('rewards',payload);if(this.round===round)this.xpSavedCount=count;}catch(e){console.error('XP persistence pending',e.message);}finally{this.xpPending=false;}
+  }
   recordResult(reason='knockout'){
-    if(this.mode!=='pvp'&&this.world.status==='won'&&this.progressRound!==this.round){this.progressRound=this.round;void this.saveProgress();}
-    if(this.mode!=='pvp'||this.world.status!=='won'||this.scoredRound===this.round)return;
-    this.scoredRound=this.round;const winnerId=this.world.winnerId;const winner=this.scores.get(winnerId);if(winner)winner.wins++;
-    this.result={winnerId,reason,round:this.round};this.sendLobby();
+    if(!['won','dead'].includes(this.world.status)||this.progressRound===this.round||this.round===0)return;
+    this.progressRound=this.round;this.finishedAt=Date.now();
+    if(this.mode==='pvp'&&this.world.status==='won'){
+      this.scoredRound=this.round;const winnerId=this.world.winnerId,winner=this.scores.get(winnerId);if(winner)winner.wins++;
+      this.result={winnerId,reason,round:this.round};
+    }
+    this.settlement=this.payload(reason);void this.saveProgress();this.sendLobby();
   }
   async saveProgress(){
-    if(this.progress==='saving'||this.progress==='saved'||this.mode==='pvp'||this.world.status!=='won')return;
-    this.progress='saving';this.sendLobby();const round=this.round,chapter=this.chapter;
-    const ids=this.progressIds.filter(id=>[...this.members.values()].some(m=>m.accountId===id&&m.connected));
-    try{await this.accounts.complete(ids,chapter,`${this.roomId}:${this.roomCreatedAt}:${round}`);if(this.round!==round)return;this.progress='saved';for(const m of this.members.values())if(ids.includes(m.accountId))m.unlockedChapter=Math.max(m.unlockedChapter,Math.min(3,chapter+1));this.broadcast('progress-saved',{chapter});}
-    catch(e){console.error('Progress save failed',e.message);this.progress='error';if(this.progressRetries++<2)this.clock.setTimeout(()=>void this.saveProgress(),2000);}
+    if(this.progress==='saving'||this.progress==='saved'||!this.settlement)return;
+    this.progress='saving';this.sendLobby();const round=this.round,chapter=this.chapter,payload=this.settlement;
+    try{
+      const result=this.accounts.store?await this.accounts.complete(payload.players.filter(p=>!p.departed).map(p=>p.id),chapter,payload.round,payload):{rewards:[]};
+      if(this.round!==round)return;
+      for(const m of this.members.values()){
+        if(this.mode!=='pvp'&&payload.outcome==='won')m.unlockedChapter=Math.max(m.unlockedChapter,Math.min(3,chapter+1));
+        const reward=result.rewards.find(r=>r.account_id===m.accountId);if(reward){reward.item=ITEMS[reward.catalog_id]??null;this.rewardCache.set(m.id,reward);this.clients.find(c=>c.sessionId===m.id)?.send('rewards',reward);}
+        // Refresh equipment and levels before the next chapter/rematch.
+        if(this.accounts.getProfile){const profile=await this.accounts.getProfile(m.accountId);m.stats=profile?.heroes.find(h=>h.id===m.hero)?.attributes??m.stats;}
+      }
+      this.progress='saved';this.broadcast('progress-saved',{chapter});
+    }catch(e){console.error('Progress save failed',e.message);this.progress='error';if(this.progressRetries++<2)this.clock.setTimeout(()=>void this.saveProgress(),2000);}
     this.sendLobby();
   }
   advance(delta){
@@ -123,7 +148,7 @@ export class ForestRoom extends Room {
     }else this.accumulator=0;
     this.recordResult();
     if(this.tick%3===0){this.broadcast('snapshot',this.snapshot());const events=this.world.events.splice(0);if(events.length)this.broadcast('events',events);}
-    if(this.tick%60===0)this.sendLobby();
+    if(this.tick%60===0){this.sendLobby();if(this.world.status==='playing')void this.flushXp();}
   }
   snapshot(){const w=this.world;return {progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,winnerId:w.winnerId,round:this.round,stage:this.stage,paused:this.isPaused(),status:w.status,time:w.time,elapsed:w.elapsed,kills:w.kills,bossActive:w.bossActive,players:w.players.map(p=>({...p})),enemies:w.enemies.map(e=>({...e})),projectiles:w.projectiles.map(({hits,...s})=>s),pickups:w.pickups.map(p=>({...p})),acks:Object.fromEntries([...this.members].map(([id,m])=>[id,m.ack]))};}
 }

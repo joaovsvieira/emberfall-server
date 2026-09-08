@@ -347,7 +347,7 @@ export class ForestScene extends Phaser.Scene {
         this.net.command('pause', false); this.pending = []; this.controls.reset(); show('modal', false); $('modal-primary').blur(); }
     openControls() { this.controlsOpen = true; this.showModal('PREPARE SUA ESPADA', 'Como jogar', 'Domine o movimento. Encontre o ritmo dos golpes.', 'ENTENDI'); show('controls-list', true); show('modal-secondary', false); show('modal-menu', false); this.primaryAction = 'controls'; }
     closeControls() { this.controlsOpen = false; show('modal', false); show('controls-list', false); $('controls').focus(); }
-    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-primary').focus()); }
+    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); show('chapter-loot', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-menu').focus()); }
     toast(text) { $('toast').textContent = text; $('toast').style.opacity = '1'; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => $('toast').style.opacity = '0', 4200); }
     update(_time, delta) {
         if (!this.uiReady)
@@ -631,6 +631,8 @@ export class ForestScene extends Phaser.Scene {
         };
         this.net.onPartyLeft = name => { if (this.session !== 'online' || this.world.status !== 'playing')
             return; this.paused = true; this.showModal('SEU COMPANHEIRO SAIU', `${name} voltou ao menu.`, this.world.players.length > 1 ? 'Os jogadores restantes podem continuar quando todos retomarem a partida.' : 'Você pode continuar este capítulo sozinho ou voltar ao menu principal.', this.world.players.length > 1 ? 'CONTINUAR JORNADA' : 'CONTINUAR SOZINHO'); this.primaryAction = 'resume'; show('modal-secondary', false); };
+        this.net.onRewards = () => { if (this.resultShown && this.world.mode !== 'pvp')
+            this.updateCampaignButtons(); };
         this.net.onSessionEnd = s => { this.networkLost = true; this.paused = true; if (s.mode === 'pvp' && s.result) {
             if (!this.resultShown)
                 this.showPvpResult(s);
@@ -850,7 +852,7 @@ export class ForestScene extends Phaser.Scene {
                 panel.append(row);
             }
         }
-        peers.forEach((peer, i) => { const row = panel.children[i]; row.children[0].textContent = peer.name + ' · ' + HEROES[peer.hero].name; row.children[1].textContent = peer.hp > 0 ? `${Math.ceil(peer.hp)} / 100` : 'CAÍDO'; row.children[2].firstElementChild.style.width = `${peer.hp}%`; });
+        peers.forEach((peer, i) => { const row = panel.children[i]; row.children[0].textContent = peer.name + ' · ' + HEROES[peer.hero].name; row.children[1].textContent = peer.hp > 0 ? `${Math.ceil(peer.hp)} / ${peer.maxHp}` : 'CAÍDO'; row.children[2].firstElementChild.style.width = `${peer.hp / peer.maxHp * 100}%`; });
         $('session-ping').textContent = `${this.net.ping} ms`;
     }
     burst(x, y, color, count = 12, range = 70) { for (let i = 0; i < count; i++) {
@@ -963,14 +965,23 @@ export class ForestScene extends Phaser.Scene {
         this.secondaryAction = 'restart';
         this.updateCampaignButtons();
     }
-    updateCampaignButtons() { const progress = this.net.lobby?.progress; if (this.session === 'online' && (progress === 'saving' || progress === 'error')) {
+    updateCampaignButtons() { this.renderLoot(); const progress = this.net.lobby?.progress; if (this.session === 'online' && (progress === 'saving' || progress === 'error')) {
         this.primaryAction = progress === 'error' ? 'retry-progress' : 'resume';
         $('modal-primary').textContent = progress === 'error' ? 'TENTAR SALVAR NOVAMENTE' : 'SALVANDO PROGRESSO…';
         $('modal-primary').disabled = progress === 'saving';
         $('modal-secondary').disabled = true;
         return;
     } if (this.session === 'online' && progress === 'saved')
-        this.primaryAction = this.world.chapter < 3 ? 'next' : 'restart'; const allowed = this.session === 'solo' || (this.net.connected && this.net.lobby?.host === this.net.id && this.net.lobby.members.every((m) => m.connected)); $('modal-primary').disabled = !allowed; $('modal-secondary').disabled = !allowed; $('modal-primary').textContent = allowed ? (this.primaryAction === 'next' ? `IR PARA O CAPÍTULO ${this.world.chapter === 1 ? 'II' : 'III'}` : 'REINICIAR CAPÍTULO') : 'AGUARDANDO O ANFITRIÃO'; }
+        this.primaryAction = this.world.status === 'won' && this.world.chapter < 3 ? 'next' : 'restart'; const allowed = this.session === 'solo' || (this.net.connected && this.net.lobby?.host === this.net.id && this.net.lobby.members.every((m) => m.connected)); $('modal-primary').disabled = !allowed; $('modal-secondary').disabled = !allowed; $('modal-primary').textContent = allowed ? (this.primaryAction === 'next' ? `IR PARA O CAPÍTULO ${this.world.chapter === 1 ? 'II' : 'III'}` : 'REINICIAR CAPÍTULO') : 'AGUARDANDO O ANFITRIÃO'; }
+    renderLoot() {
+        const reward = this.net.rewards, visible = this.world.status === 'won' && this.world.mode !== 'pvp' && this.session === 'online';
+        show('chapter-loot', visible);
+        if (!visible)
+            return;
+        const catalog = reward?.catalog_id;
+        const own = this.hub?.profile?.heroes?.flatMap((h) => h.inventory ?? []).find((i) => i.catalog_id === catalog);
+        $('chapter-loot').textContent = reward ? `SUA RECOMPENSA\n+${reward.gold} gold${catalog ? ' · ' + (reward.item?.name ?? own?.definition?.name ?? '1 equipamento recebido') : ''}\nItens enviados ao inventário deste herói. Equipe-os na aba Heróis.` : 'Salvando sua recompensa individual…';
+    }
     setModeTitle(mode) { $('mp-eyebrow').textContent = mode === 'solo' ? 'JORNADA INDIVIDUAL' : mode === 'pvp' ? 'PVP ONLINE · 1 CONTRA 1' : 'COOPERATIVO ONLINE · 2–4 JOGADORES'; $('mp-title').textContent = mode === 'solo' ? 'Sua chama. Sua jornada.' : mode === 'pvp' ? 'Dois heróis. Um vencedor.' : 'Uma equipe. Uma jornada.'; }
     scoreText(scores = []) { return scores.map(p => `${p.name}: ${p.wins}`).join('  ×  '); }
     showPvpResult(s) {
@@ -987,6 +998,13 @@ export class ForestScene extends Phaser.Scene {
             playSound('won');
     }
     updatePvpResultButtons(lobby) {
+        if (lobby?.progress === 'saving' || lobby?.progress === 'error') {
+            this.primaryAction = lobby.progress === 'error' ? 'retry-progress' : 'restart';
+            $('modal-primary').disabled = lobby.progress === 'saving';
+            $('modal-primary').textContent = lobby.progress === 'error' ? 'TENTAR SALVAR NOVAMENTE' : 'SALVANDO RESULTADO…';
+            return;
+        }
+        this.primaryAction = 'restart';
         const host = lobby?.host === this.net.id, canRestart = !this.networkLost && this.net.connected && lobby?.members.length === 2 && lobby.members.every((m) => m.connected);
         $('modal-primary').disabled = !host || !canRestart;
         $('modal-primary').textContent = !canRestart ? 'ADVERSÁRIO SAIU' : host ? 'REVANCHE' : 'AGUARDANDO O ANFITRIÃO';
@@ -994,7 +1012,7 @@ export class ForestScene extends Phaser.Scene {
         show('modal-menu', true);
         $('modal-menu').textContent = host && this.net.connected ? 'Encerrar sala e voltar ao menu' : 'Menu principal';
     }
-    updateHUD() { const p = this.world.player; this.updateHeroHUD(); const pvp = this.world.mode === 'pvp'; show('duel-hud', pvp && this.session === 'online'); $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores); $('duel-round').textContent = `DUELO ${this.activeRound}`; $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SUA EQUIPE'; $('level-progress').parentElement.classList.toggle('hidden', pvp); $('hero-name').textContent = this.session === 'online' ? p.name : HEROES[p.hero].name.toUpperCase(); $('health-fill').style.width = `${p.hp}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / 100`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = this.world.level.zones.map((name, i) => `0${i + 1} — ${name}`); $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'Capítulo concluído' : this.world.bossActive ? `Derrote ${this.world.level.boss}` : this.net.active && p.x > 3780 ? 'Aguarde sua equipe no santuário' : this.world.chapter === 3 ? 'Atravesse a cidadela →' : this.world.chapter === 2 ? 'Atravesse a caldeira →' : 'Atravesse a floresta →'; if (pvp) {
+    updateHUD() { const p = this.world.player; this.updateHeroHUD(); const pvp = this.world.mode === 'pvp'; show('duel-hud', pvp && this.session === 'online'); $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores); $('duel-round').textContent = `DUELO ${this.activeRound}`; $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SUA EQUIPE'; $('level-progress').parentElement.classList.toggle('hidden', pvp); $('hero-name').textContent = this.session === 'online' ? p.name : HEROES[p.hero].name.toUpperCase(); $('health-fill').style.width = `${p.hp / p.maxHp * 100}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = this.world.level.zones.map((name, i) => `0${i + 1} — ${name}`); $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'Capítulo concluído' : this.world.bossActive ? `Derrote ${this.world.level.boss}` : this.net.active && p.x > 3780 ? 'Aguarde sua equipe no santuário' : this.world.chapter === 3 ? 'Atravesse a cidadela →' : this.world.chapter === 2 ? 'Atravesse a caldeira →' : 'Atravesse a floresta →'; if (pvp) {
         $('area-label').textContent = 'ARENA · ' + this.world.level.name.toUpperCase();
         $('objective-text').textContent = this.world.status === 'won' ? 'Duelo concluído' : 'Derrote seu adversário';
     } for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {

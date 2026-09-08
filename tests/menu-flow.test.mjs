@@ -24,3 +24,9 @@ test('chapter I victory exposes advance, restart and menu; offline online sessio
  s.world=new World(3);s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'restart');assert.equal(element('modal-secondary').classList.contains('hidden'),true);
  s.session='online';s.net={connected:false};chapter=null;s.restart();assert.equal(chapter,null);
 });
+test('saved campaign defeat exposes restart, while a victory remains in its modal until an explicit action',()=>{
+ const s=scene();s.session='online';s.net={connected:true,id:'host',lobby:{host:'host',progress:'saved',members:[{connected:true}]},command(){throw new Error('automatic transition is forbidden')}};
+ s.world.status='dead';s.showCampaignResult();assert.equal(s.primaryAction,'restart');assert.equal(element('modal').classList.contains('hidden'),false);
+ s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'next');assert.equal(element('chapter-loot').classList.contains('hidden'),false);assert.equal(element('modal').classList.contains('hidden'),false);
+ s.net.lobby.progress='error';s.updateCampaignButtons();assert.equal(s.primaryAction,'retry-progress');
+});

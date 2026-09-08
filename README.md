@@ -143,3 +143,7 @@ Ao derrotar o chefe II, o anfitrião (ou jogador solo) escolhe avançar ao capí
 Artes geradas para esta atualização: `aurel.png` (paladino de marfim e ouro, cajado solar), `sylva.png` (arqueira adulta de capuz verde e arco de madeira), folhas transparentes com quatro poses; `frosthold.png` (catedral congelada, aurora e piso de pedra coberto de geada). A extração de quadros preserva a ponta do arco de Sylva que ultrapassa o limite regular da célula.
 
 Validação: combate dos dois heróis, limites e exclusões da cura, absorção/expiração do escudo, PvP, travessia de todos os capítulos e quatro clientes WebSocket locais com prontidão, limite de vagas, cura sincronizada, progressão, saída e retomada. Testes de interface usam uma fachada de cena, sem navegador.
+
+## Atualização 0.8
+
+Amizades, chat global/privado, XP por herói, loot individual, equipamentos, mercado por gold, histórico, ranking semanal e admin. Veja [docs/GAME_SYSTEMS.md](docs/GAME_SYSTEMS.md) para regras, fórmulas, catálogo, transações, limites e acesso administrativo. Para habilitar sua conta no admin, configure `ADMIN_ACCOUNT_IDS` no Render; o ID aparece em Configurações no jogo.

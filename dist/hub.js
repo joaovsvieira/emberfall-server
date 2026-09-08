@@ -1,3 +1,4 @@
+import { Features } from './features.js';
 import { HEROES, CHAPTERS } from './engine.js';
 const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
@@ -6,15 +7,14 @@ export class Hub {
         this.scene = scene;
         this.profile = null;
         this.chapter = 1;
-        this.tab = 'heroes';
+        this.tab = 'map';
         this.authMode = 'login';
         this.busy = false;
         this.generation = 0;
         this.heroSave = Promise.resolve();
         this.chatTab = 'global';
         this.friendTab = 'list';
-        this.chatMessages = { global: [{ name: 'Elaria', text: 'Alguém para jogar o capítulo II?' }, { name: 'Riven', text: 'A sala da floresta está aberta.' }], clan: [{ name: 'Aldor', text: 'Bem-vindos à nossa chama.' }], friends: [{ name: 'Mira', text: 'Você viu o novo guardião?' }] };
-        for (const tab of ['heroes', 'map', 'settings'])
+        for (const tab of ['heroes', 'map', 'history', 'market', 'ranking', 'settings'])
             $('tab-' + tab).onclick = () => this.setTab(tab);
         $('auth-switch').onclick = () => { this.authMode = this.authMode === 'login' ? 'register' : 'login'; this.renderAuth(); };
         $('auth-form').onsubmit = e => { e.preventDefault(); void this.submit(); };
@@ -30,7 +30,7 @@ export class Hub {
         $('map-3').onclick = () => this.selectChapter(3);
         $('start').onclick = () => void this.playSolo();
         $('hero-to-map').onclick = () => this.setTab('map');
-        this.bindSocialWidgets();
+        this.features = new Features(this);
         document.addEventListener('click', e => { const target = e.target; if (!target.closest('#account-menu'))
             this.closeAccountMenu(); });
         this.setAuthChrome(true);
@@ -80,6 +80,7 @@ export class Hub {
             return;
         if (e.status === 401) {
             this.profile = null;
+            this.features?.reset();
             this.setAuthChrome(true);
             visible('auth-screen', true);
             visible('start-screen', false);
@@ -97,19 +98,26 @@ export class Hub {
     accept(profile, initial = true) {
         const first = !this.profile;
         this.profile = profile;
+        if (first || initial)
+            this.tab = 'map';
         this.setAuthChrome(false);
         visible('auth-screen', false);
         $('account-name').textContent = profile.name;
+        $('account-id').textContent = 'ID da conta: ' + profile.id;
         $('mp-name').value = profile.name;
         $('mp-name').readOnly = true;
         if (first || initial)
             this.scene.selectHero(profile.preferredHero);
+        this.features.accepted();
         this.renderHeroes();
         this.renderMap();
         this.renderFooter();
+        if (this.scene.resultShown && this.scene.world.mode !== 'pvp')
+            this.scene.renderLoot();
         if (this.scene.session === 'menu') {
             visible('start-screen', true);
-            this.setTab(this.tab);
+            if (first || initial)
+                this.setTab(this.tab);
         }
         if (first) {
             const invite = new URL(location.href);
@@ -119,10 +127,10 @@ export class Hub {
             }
         }
     }
-    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['heroes', 'map', 'settings']) {
+    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['heroes', 'map', 'history', 'market', 'ranking', 'settings']) {
         visible('panel-' + name, name === tab);
         $('tab-' + name).setAttribute('aria-selected', String(name === tab));
-    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); }
+    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); this.features.open(tab); }
     syncSound() { $('settings-sound').textContent = $('sound').getAttribute('aria-label') === 'Desativar som' ? 'Som: ativado' : 'Som: desativado'; }
     heroSelected(hero) { if (!this.profile)
         return; this.profile.preferredHero = hero; this.renderHeroes(); this.renderFooter(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
@@ -142,6 +150,7 @@ export class Hub {
         $('roster-basic').textContent = hero.attack;
         $('roster-q').textContent = hero.skill1;
         $('roster-e').textContent = hero.skill2;
+        this.features?.renderInventory();
         for (const h of Object.keys(HEROES))
             $('hero-' + h).disabled = !this.profile.heroes.some((owned) => owned.id === h);
     }
@@ -168,39 +177,6 @@ export class Hub {
     closeAccountMenu() { visible('account-dropdown', false); $('account-trigger').setAttribute('aria-expanded', 'false'); }
     renderFooter() { if (!this.profile)
         return; const chapter = CHAPTERS[this.chapter]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][this.chapter]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle')).getSourceImage().toDataURL(); }
-    bindSocialWidgets() {
-        $('footer-chat').onclick = () => this.toggleWidget('chat');
-        $('footer-friends').onclick = () => this.toggleWidget('friends');
-        $('chat-close').onclick = () => this.closeWidgets();
-        $('friends-close').onclick = () => this.closeWidgets();
-        for (const button of document.querySelectorAll('[data-chat-tab]'))
-            button.onclick = () => { this.chatTab = button.dataset.chatTab ?? 'global'; document.querySelectorAll('[data-chat-tab]').forEach(item => item.classList.toggle('active', item === button)); this.renderChat(); };
-        for (const button of document.querySelectorAll('[data-friend-tab]'))
-            button.onclick = () => { this.friendTab = button.dataset.friendTab ?? 'list'; document.querySelectorAll('[data-friend-tab]').forEach(item => item.classList.toggle('active', item === button)); this.renderFriends(); };
-        $('chat-form').onsubmit = e => { e.preventDefault(); const input = $('chat-input'); const text = input.value.trim(); if (!text)
-            return; this.chatMessages[this.chatTab].push({ name: this.profile?.name ?? 'Você', text, own: true }); input.value = ''; this.renderChat(); };
-        this.renderChat();
-        this.renderFriends();
-    }
-    renderChat() { const box = $('chat-messages'); box.replaceChildren(); for (const message of this.chatMessages[this.chatTab] ?? []) {
-        const row = document.createElement('div');
-        row.className = 'chat-message' + (message.own ? ' own' : '');
-        const name = document.createElement('strong');
-        name.textContent = message.name;
-        const text = document.createElement('p');
-        text.textContent = message.text;
-        row.append(name, text);
-        box.append(row);
-    } box.scrollTop = box.scrollHeight; }
-    renderFriends() { const box = $('friends-content'); if (this.friendTab === 'requests') {
-        box.innerHTML = '<div class="friend-request"><div><strong>Thalia</strong><small>Quer adicionar você</small></div><div class="request-actions"><button class="mini-primary">Aceitar</button><button class="mini-button">Recusar</button></div></div><div class="friend-request"><div><strong>Orin</strong><small>Quer adicionar você</small></div><div class="request-actions"><button class="mini-primary">Aceitar</button><button class="mini-button">Recusar</button></div></div>';
-        return;
-    } if (this.friendTab === 'add') {
-        box.innerHTML = '<div class="friend-add"><p>Encontre um aventureiro pelo nome.</p><div class="friend-add-row"><input class="mp-input" placeholder="Nome do jogador" disabled /><button class="outline-button" disabled>Adicionar</button></div><small>O sistema de convites será conectado em breve.</small></div>';
-        return;
-    } box.innerHTML = '<div class="friend-row"><span class="presence online"></span><div><strong>Mira</strong><small>Online · Lyra</small></div><button class="friend-more" aria-label="Opções de Mira">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div><div class="friend-row"><span class="presence online"></span><div><strong>Riven</strong><small>Online · Kael</small></div><button class="friend-more" aria-label="Opções de Riven">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div><div class="friend-row"><span class="presence offline"></span><div><strong>Cael</strong><small>Offline · Sylva</small></div><button class="friend-more" aria-label="Opções de Cael">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div>'; for (const button of box.querySelectorAll('.friend-more'))
-        button.onclick = e => { e.stopPropagation(); const menu = button.nextElementSibling; box.querySelectorAll('.friend-menu').forEach(item => { if (item !== menu)
-            item.classList.add('hidden'); }); menu.classList.toggle('hidden'); }; }
     toggleWidget(which) { const id = which === 'chat' ? 'chat-widget' : 'friends-widget'; const other = which === 'chat' ? 'friends-widget' : 'chat-widget'; const open = $(id).classList.contains('hidden'); visible(other, false); visible(id, open); $('footer-chat').setAttribute('aria-expanded', String(which === 'chat' && open)); $('footer-friends').setAttribute('aria-expanded', String(which === 'friends' && open)); }
     closeWidgets() { visible('chat-widget', false); visible('friends-widget', false); $('footer-chat').setAttribute('aria-expanded', 'false'); $('footer-friends').setAttribute('aria-expanded', 'false'); }
     canPlay() { return !!this.profile && this.chapter <= this.profile.unlockedChapter && !this.scene.net.connecting; }
@@ -211,6 +187,7 @@ export class Hub {
         await this.heroSave;
         await this.api('logout', {});
         this.profile = null;
+        this.features?.reset();
         this.setAuthChrome(true);
         this.closeWidgets();
         await this.scene.goToMenu();
@@ -228,4 +205,3 @@ export class Hub {
         $('settings-logout').disabled = false;
     } }
 }
-

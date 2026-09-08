@@ -15,7 +15,7 @@ export const CHAPTERS = {
             { x: 650, y: 495, w: 160 }, { x: 960, y: 420, w: 150 }, { x: 1260, y: 500, w: 160 }, { x: 1570, y: 435, w: 150 }, { x: 1900, y: 495, w: 155 }, { x: 2270, y: 410, w: 145 }, { x: 2540, y: 490, w: 150 }, { x: 2840, y: 465, w: 145 }, { x: 3120, y: 410, w: 145 }, { x: 3390, y: 490, w: 150 }
         ] }
 };
-export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, grounded: true, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0 }; }
+export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, maxHp: 100, damage: 100, defense: 0, speed: 100, attackSpeed: 100, grounded: true, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0 }; }
 export class World {
     get level() { return CHAPTERS[this.chapter]; }
     get platforms() { return this.level.platforms; }
@@ -64,7 +64,7 @@ export class World {
     emit(type, extra = {}) { this.events.push({ type, playerId: this.player.id, ...extra }); }
     start() { this.status = 'playing'; this.emit('toast', { text: 'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar' }); }
     damagePlayer(amount, sourceX) { const p = this.player; if (p.invincible > 0 || this.status !== 'playing')
-        return; const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
+        return; amount = Math.max(1, Math.round(amount * 100 / (100 + p.defense))); const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
         this.emit('blocked', { x: p.x, y: p.y - 85, value: absorbed }); p.hp = Math.max(0, p.hp - amount); p.invincible = this.mode === 'pvp' ? .22 : 1.15; p.vx = (p.x >= sourceX ? 1 : -1) * 240; this.hitCount = 0; this.emit('hurt', { x: p.x, y: p.y - 65, value: amount }); if (p.hp <= 0) {
         p.vx = 0;
         p.vy = 0;
@@ -86,14 +86,14 @@ export class World {
         if (this.mode !== 'pvp' || this.predicting || target.id === attacker.id || target.hp <= 0 || target.invincible > 0 || this.status !== 'playing')
             return;
         this.player = target;
-        this.damagePlayer(damage, attacker.x);
+        this.damagePlayer(Math.round(damage * attacker.damage / 100), attacker.x);
         this.player = attacker;
         attacker.hitCount++;
         attacker.comboTime = 2.5;
         attacker.bestCombo = Math.max(attacker.bestCombo, attacker.hitCount);
     }
     hitEnemy(e, damage, dir) { if (e.dead || (e.kind === 'boss' && !this.bossActive))
-        return; e.hp = Math.max(0, e.hp - damage); e.flash = .16; e.knock = dir * (e.kind === 'boss' ? 60 : 210); this.hitCount++; this.comboTime = 2.5; this.bestCombo = Math.max(this.bestCombo, this.hitCount); this.emit('hit', { x: e.x, y: e.y - (e.kind === 'boss' ? 140 : 60), value: damage, kind: e.kind }); if (e.hp <= 0) {
+        return; damage = Math.round(damage * this.player.damage / 100); e.hp = Math.max(0, e.hp - damage); e.flash = .16; e.knock = dir * (e.kind === 'boss' ? 60 : 210); this.hitCount++; this.comboTime = 2.5; this.bestCombo = Math.max(this.bestCombo, this.hitCount); this.emit('hit', { x: e.x, y: e.y - (e.kind === 'boss' ? 140 : 60), value: damage, kind: e.kind }); if (e.hp <= 0) {
         e.dead = true;
         this.kills++;
         this.emit('kill', { x: e.x, y: e.y - 40, kind: e.kind });
@@ -141,7 +141,7 @@ export class World {
                     for (const ally of this.players) {
                         if (ally.hp <= 0 || (this.mode === 'pvp' && ally.id !== p.id) || Math.hypot(ally.x - p.x, ally.y - p.y) > 300)
                             continue;
-                        const healed = Math.min(this.mode === 'pvp' ? 22 : 35, 100 - ally.hp);
+                        const healed = Math.min(this.mode === 'pvp' ? 22 : 35, ally.maxHp - ally.hp);
                         ally.hp += healed;
                         if (healed)
                             this.emit('heal', { playerId: ally.id, x: ally.x, y: ally.y - 95, value: healed });
@@ -267,7 +267,7 @@ export class World {
                 p.revive = helper ? p.revive + dt : 0;
                 if (p.revive >= 2.5) {
                     this.player = p;
-                    p.hp = 40;
+                    p.hp = Math.round(p.maxHp * .4);
                     p.invincible = 2;
                     p.revive = 0;
                     this.emit('revived', { x: p.x, y: p.y - 90 });
@@ -280,7 +280,7 @@ export class World {
         if (p.hp <= 0)
             return;
         for (const key of ['invincible', 'dash', 'dashCooldown', 'attack', 'attackCooldown', 'skill1', 'skill2', 'jumpBuffer', 'coyote', 'shieldTime'])
-            p[key] = Math.max(0, p[key] - dt);
+            p[key] = Math.max(0, p[key] - dt * (key === 'attackCooldown' ? p.attackSpeed / 100 : 1));
         if (p.shieldTime <= 0)
             p.shield = 0;
         this.comboTime -= dt;
@@ -298,7 +298,7 @@ export class World {
             p.vy = 0;
         }
         else {
-            p.vx += (move * 290 - p.vx) * Math.min(1, dt * (p.grounded ? 18 : 9));
+            p.vx += (move * 290 * p.speed / 100 - p.vx) * Math.min(1, dt * (p.grounded ? 18 : 9));
             p.vy += 1510 * dt;
         }
         const oldY = p.y;
@@ -346,7 +346,7 @@ export class World {
             this.bossActive = true;
             for (const member of this.players) {
                 member.checkpoint = 3930;
-                member.hp = member.hp > 0 ? Math.min(100, member.hp + 35) : 0;
+                member.hp = member.hp > 0 ? Math.min(member.maxHp, member.hp + 35) : 0;
             }
             this.emit('boss');
             this.emit('toast', { text: `${this.level.boss} · Pule sobre as ondas e use o dash para esquivar.` });
@@ -511,7 +511,7 @@ export class World {
                 h.y += (p.y - 45 - h.y) * dt * 6;
             }
             if (Math.hypot(h.x - p.x, h.y - (p.y - 45)) < 35) {
-                p.hp = Math.min(100, p.hp + 12);
+                p.hp = Math.min(p.maxHp, p.hp + 12);
                 h.life = 0;
                 this.emit('heal', { x: p.x, y: p.y - 95, value: 12 });
             }

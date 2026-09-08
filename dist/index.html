@@ -15,8 +15,28 @@
     <div id="vignette"></div>
     <header class="topbar">
       <a class="wordmark" href="#" id="brand" aria-label="Pausar Emberfall"><span class="rune">◇</span> EMBERFALL</a>
+      <nav id="hub-navigation" class="hub-tabs" aria-label="Menu principal">
+        <button id="tab-shop" disabled title="Em breve">Loja <small>EM BREVE</small></button>
+        <button id="tab-heroes" aria-selected="true">Heróis</button>
+        <button id="tab-history" disabled title="Em breve">Histórico <small>EM BREVE</small></button>
+        <button id="tab-map" aria-selected="false">Mapa</button>
+        <button id="tab-market" disabled title="Em breve">Mercado <small>EM BREVE</small></button>
+        <button id="tab-ranking" disabled title="Em breve">Ranking <small>EM BREVE</small></button>
+        <button id="tab-settings" aria-selected="false">Configurações</button>
+      </nav>
       <span class="chapter" id="chapter-label">CAPÍTULO I <span> / </span> ECOS DA FLORESTA</span>
-      <div class="top-actions"><button id="sound" class="icon-button" aria-label="Desativar som" title="Desativar som">♪<span class="mute-slash" style="display:none">/</span></button><button id="fullscreen" class="icon-button" aria-label="Tela cheia" title="Tela cheia">⛶</button><button id="pause" class="icon-button hidden" aria-label="Pausar jogo" title="Pausar (Esc)">Ⅱ</button></div>
+      <div class="top-actions">
+        <button id="sound" class="icon-button" aria-label="Desativar som" title="Desativar som">♪<span class="mute-slash" style="display:none">/</span></button>
+        <button id="fullscreen" class="icon-button" aria-label="Tela cheia" title="Tela cheia">⛶</button>
+        <div id="account-menu" class="account-menu">
+          <button id="account-trigger" class="account-trigger" aria-expanded="false" aria-haspopup="true"><span id="account-name"></span><span class="account-chevron">⌄</span></button>
+          <div id="account-dropdown" class="account-dropdown hidden" role="menu">
+            <button id="account-settings" role="menuitem">Configurações <span>⚙</span></button>
+            <button id="account-logout" role="menuitem">Sair da conta <span>↪</span></button>
+          </div>
+        </div>
+        <button id="pause" class="icon-button hidden" aria-label="Pausar jogo" title="Pausar (Esc)">Ⅱ</button>
+      </div>
     </header>
     <section id="hud" class="hidden" aria-label="Status do personagem">
       <div class="player-hud"><div class="portrait"><img id="portrait" alt="Kael" /></div><div class="vitals"><div class="name-row"><strong id="hero-name">KAEL</strong><span id="hero-role">ESPADACHIM</span></div><div class="health-track"><div id="health-fill"></div></div><div class="health-label"><span id="health-value">100 / 100</span><span>VIDA</span></div></div></div>
@@ -27,7 +47,6 @@
       <div class="bottom-hud"><div class="keyboard-hint"><span><kbd>A</kbd><kbd>D</kbd> Mover</span><span><kbd>W</kbd><kbd>↑</kbd><kbd>ESPAÇO</kbd> Pulo duplo</span><span><kbd>CLIQUE ESQ.</kbd> <span id="attack-label">Combo de espada</span></span><span><kbd>SHIFT</kbd> Dash</span></div><div class="skills"><button class="skill" data-action="skill1" id="skill1"><span class="skill-symbol">╱</span><kbd>Q</kbd><span class="skill-name" id="skill-name-1">CORTE SOLAR</span><span class="cooldown" id="cooldown1"></span></button><button class="skill" data-action="skill2" id="skill2"><span class="skill-symbol">✧</span><kbd>E</kbd><span class="skill-name" id="skill-name-2">NOVA RÚNICA</span><span class="cooldown" id="cooldown2"></span></button></div></div>
     </section>
     <section id="start-screen" class="screen hub hidden">
-      <nav class="hub-tabs" aria-label="Menu principal"><button disabled title="Em breve">Loja <small>EM BREVE</small></button><button id="tab-heroes" aria-selected="true">Heróis</button><button id="tab-map" aria-selected="false">Mapa</button><button disabled title="Em breve">Histórico <small>EM BREVE</small></button><button id="tab-settings" aria-selected="false">Configurações</button><span class="account-badge" id="account-name"></span></nav>
       <div class="hub-body">
         <section id="panel-heroes" class="hub-panel roster-panel" aria-label="Seus heróis">
           <div class="roster-heading"><div><span class="eyebrow">SEUS HERÓIS · 04</span><h1 id="roster-name">Kael</h1><p id="roster-role">Espadachim</p></div><span id="roster-level" class="level-badge">NÍVEL 1</span></div>
@@ -41,7 +60,27 @@
           <button id="map-3" class="chapter-card locked" aria-pressed="false"><img src="assets/frosthold.png" alt="Cidadela congelada" /><span class="chapter-number">III</span><div><small>CAPÍTULO III</small><strong>Cidadela da Geada</strong><span id="map-state-3">BLOQUEADO</span></div></button>
         </div><div class="map-actions"><div><h2 id="selected-map-name">Ecos da Floresta</h2><p id="selected-map-copy"></p></div><div class="mode-actions"><button id="start" class="primary-button">JOGAR SOLO</button><button id="multiplayer" class="outline-button coop-button">JOGAR PVE <span>2–4</span></button><button id="pvp" class="outline-button coop-button pvp-button">JOGAR PVP <span>1 × 1</span></button></div></div><button id="controls" class="text-button">Como jogar ↗</button></section>
         <section id="panel-settings" class="hub-panel settings-panel hidden" aria-label="Configurações"><span class="eyebrow">DO SEU JEITO</span><h1>Configurações</h1><p>Ajuste sua experiência de jogo.</p><button id="settings-fullscreen" class="settings-row">Tela cheia <span>⛶</span></button><button id="settings-sound" class="settings-row">Som: ativado</button><button id="settings-logout" class="settings-row logout-row">Desconectar da conta</button></section>
-      </div><p id="hub-status" role="status"></p>
+      </div>
+      <footer id="hub-footer" class="hub-footer" aria-label="Atalhos da conta">
+        <div class="footer-info">
+          <div class="footer-currencies"><span class="footer-currency"><b>◈</b><strong id="footer-gems">0</strong></span><span class="footer-currency"><b>✦</b><strong id="footer-gold">0</strong></span></div>
+          <div class="footer-progress"><small>PROGRESSO ATUAL</small><strong id="footer-progress">CAPÍTULO I · ECOS DA FLORESTA</strong></div>
+          <div class="footer-hero"><img id="footer-hero-image" alt="" /><span><small>HERÓI ATUAL</small><strong id="footer-hero-name">KAEL</strong></span></div>
+        </div>
+        <div class="footer-social"><button id="footer-chat" class="footer-icon" aria-expanded="false" title="Abrir chat"><span>◌</span><small>Chat</small></button><button id="footer-friends" class="footer-icon" aria-expanded="false" title="Abrir amigos"><span>♧</span><small>Amigos</small></button></div>
+      </footer>
+      <section id="chat-widget" class="social-widget hidden" aria-label="Chat">
+        <div class="widget-heading"><div><span class="eyebrow">COMUNICAÇÃO</span><h2>Chat</h2></div><button id="chat-close" class="widget-close" aria-label="Fechar chat">×</button></div>
+        <div class="widget-tabs" role="tablist"><button class="widget-tab active" data-chat-tab="global" role="tab">Global</button><button class="widget-tab" data-chat-tab="clan" role="tab">Clã</button><button class="widget-tab" data-chat-tab="friends" role="tab">Amigos</button></div>
+        <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+        <form id="chat-form" class="chat-form"><input id="chat-input" aria-label="Mensagem" maxlength="120" placeholder="Escreva uma mensagem…" /><button type="submit" title="Enviar">↑</button></form>
+      </section>
+      <section id="friends-widget" class="social-widget friends-widget hidden" aria-label="Amigos">
+        <div class="widget-heading"><div><span class="eyebrow">SUA REDE</span><h2>Amigos</h2></div><button id="friends-close" class="widget-close" aria-label="Fechar amigos">×</button></div>
+        <div class="widget-tabs" role="tablist"><button class="widget-tab active" data-friend-tab="list" role="tab">Amigos</button><button class="widget-tab" data-friend-tab="requests" role="tab">Solicitações <b>2</b></button><button class="widget-tab" data-friend-tab="add" role="tab">Adicionar</button></div>
+        <div id="friends-content" class="friends-content"></div>
+      </section>
+      <p id="hub-status" role="status"></p>
     </section>
     <section id="auth-screen" class="auth-screen hidden" aria-label="Entrar no Emberfall"><div class="auth-brand"><span class="eyebrow">ECOS DA FLORESTA</span><h1>EMBER<span>FALL</span></h1><p>A chama te espera.</p></div><form id="auth-form" class="auth-panel"><span class="eyebrow">SUA CONTA · SUA JORNADA</span><h2 id="auth-title">Bem-vindo de volta.</h2><label for="auth-username">Usuário</label><input id="auth-username" class="mp-input" autocomplete="username" required minlength="3" maxlength="18" pattern="[A-Za-z0-9_]{3,18}" placeholder="Seu nome de aventureiro" /><small>3–18 letras, números ou _</small><label for="auth-password">Senha</label><input id="auth-password" class="mp-input" type="password" autocomplete="current-password" required minlength="8" maxlength="128" placeholder="Pelo menos 8 caracteres" /><button id="auth-submit" class="primary-button" type="submit">ENTRAR</button><button id="auth-switch" class="text-button" type="button">Criar uma conta</button><p id="auth-status" role="status">Verificando sua sessão…</p><button id="auth-retry" class="text-button" type="button">Verificar conexão novamente</button></form></section>
     <section id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-panel"><div class="eyebrow" id="modal-eyebrow">UMA PAUSA NA JORNADA</div><h2 id="modal-title">Respire, viajante.</h2><p id="modal-copy">A floresta pode esperar.</p><div id="pvp-result" class="hidden"><span class="field-label">PLACAR DA SALA</span><strong id="pvp-score"></strong><p>As vitórias se acumulam a cada revanche.</p></div><div id="controls-list" class="hidden"><div><span>Mover</span><span><kbd>A</kbd> <kbd>D</kbd> ou <kbd>←</kbd> <kbd>→</kbd></span></div><div><span>Pular / pulo duplo</span><span><kbd>W</kbd> <kbd>↑</kbd> <kbd>ESPAÇO</kbd></span></div><div><span>Ataque do herói</span><kbd>CLIQUE ESQ.</kbd></div><div><span>Dash / esquiva</span><span><kbd>SHIFT</kbd> ou <kbd>K</kbd></span></div><div><span>Habilidade Q</span><span><kbd>Q</kbd> ou <kbd>U</kbd></span></div><div><span>Habilidade E</span><span><kbd>E</kbd> ou <kbd>I</kbd></span></div><div><span>Pausar</span><kbd>ESC</kbd></div><p>Kael usa espada; Lyra lança fogo; Sylva dispara flechas. Aurel ataca com luz, usa escudo no Q e cura aliados próximos no E (não reanima caídos). As habilidades recarregam sozinhas. O dash evita dano. Colete as chamas verdes para recuperar vida.</p></div><button id="modal-primary" class="primary-button">CONTINUAR</button><button id="modal-secondary" class="outline-button">Reiniciar capítulo</button><button id="modal-menu" class="text-button">Menu principal</button></div></section>
@@ -78,3 +117,4 @@
   <script type="module" src="game.js"></script>
 </body>
 </html>
+

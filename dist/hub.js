@@ -11,6 +11,9 @@ export class Hub {
         this.busy = false;
         this.generation = 0;
         this.heroSave = Promise.resolve();
+        this.chatTab = 'global';
+        this.friendTab = 'list';
+        this.chatMessages = { global: [{ name: 'Elaria', text: 'Alguém para jogar o capítulo II?' }, { name: 'Riven', text: 'A sala da floresta está aberta.' }], clan: [{ name: 'Aldor', text: 'Bem-vindos à nossa chama.' }], friends: [{ name: 'Mira', text: 'Você viu o novo guardião?' }] };
         for (const tab of ['heroes', 'map', 'settings'])
             $('tab-' + tab).onclick = () => this.setTab(tab);
         $('auth-switch').onclick = () => { this.authMode = this.authMode === 'login' ? 'register' : 'login'; this.renderAuth(); };
@@ -19,11 +22,18 @@ export class Hub {
         $('settings-fullscreen').onclick = () => $('fullscreen').click();
         $('settings-sound').onclick = () => { $('sound').click(); this.syncSound(); };
         $('settings-logout').onclick = () => void this.logout();
+        $('account-trigger').onclick = e => { e.stopPropagation(); this.toggleAccountMenu(); };
+        $('account-settings').onclick = () => { this.closeAccountMenu(); this.setTab('settings'); };
+        $('account-logout').onclick = () => { this.closeAccountMenu(); void this.logout(); };
         $('map-1').onclick = () => this.selectChapter(1);
         $('map-2').onclick = () => this.selectChapter(2);
         $('map-3').onclick = () => this.selectChapter(3);
         $('start').onclick = () => void this.playSolo();
         $('hero-to-map').onclick = () => this.setTab('map');
+        this.bindSocialWidgets();
+        document.addEventListener('click', e => { const target = e.target; if (!target.closest('#account-menu'))
+            this.closeAccountMenu(); });
+        this.setAuthChrome(true);
         this.scene.net.onProgress = () => void this.refresh(false);
         this.renderAuth();
         visible('auth-screen', true);
@@ -70,11 +80,13 @@ export class Hub {
             return;
         if (e.status === 401) {
             this.profile = null;
+            this.setAuthChrome(true);
             visible('auth-screen', true);
             visible('start-screen', false);
             $('auth-status').textContent = 'Entre para continuar sua jornada.';
         }
         else if (showLogin) {
+            this.setAuthChrome(true);
             visible('auth-screen', true);
             visible('start-screen', false);
             $('auth-status').textContent = e.message;
@@ -85,6 +97,7 @@ export class Hub {
     accept(profile, initial = true) {
         const first = !this.profile;
         this.profile = profile;
+        this.setAuthChrome(false);
         visible('auth-screen', false);
         $('account-name').textContent = profile.name;
         $('mp-name').value = profile.name;
@@ -93,6 +106,7 @@ export class Hub {
             this.scene.selectHero(profile.preferredHero);
         this.renderHeroes();
         this.renderMap();
+        this.renderFooter();
         if (this.scene.session === 'menu') {
             visible('start-screen', true);
             this.setTab(this.tab);
@@ -105,13 +119,13 @@ export class Hub {
             }
         }
     }
-    setTab(tab) { this.tab = tab; for (const name of ['heroes', 'map', 'settings']) {
+    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['heroes', 'map', 'settings']) {
         visible('panel-' + name, name === tab);
         $('tab-' + name).setAttribute('aria-selected', String(name === tab));
-    } this.syncSound(); this.renderHeroes(); this.renderMap(); }
+    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); }
     syncSound() { $('settings-sound').textContent = $('sound').getAttribute('aria-label') === 'Desativar som' ? 'Som: ativado' : 'Som: desativado'; }
     heroSelected(hero) { if (!this.profile)
-        return; this.profile.preferredHero = hero; this.renderHeroes(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
+        return; this.profile.preferredHero = hero; this.renderHeroes(); this.renderFooter(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
         await this.api('hero', { hero });
     }
     catch (e) {
@@ -149,6 +163,46 @@ export class Hub {
         for (const id of ['start', 'multiplayer', 'pvp'])
             $(id).disabled = this.chapter > unlocked || this.scene.net.connecting;
     }
+    setAuthChrome(auth) { $('shell').classList.toggle('auth-active', auth); }
+    toggleAccountMenu() { const open = $('account-dropdown').classList.contains('hidden'); visible('account-dropdown', open); $('account-trigger').setAttribute('aria-expanded', String(open)); }
+    closeAccountMenu() { visible('account-dropdown', false); $('account-trigger').setAttribute('aria-expanded', 'false'); }
+    renderFooter() { if (!this.profile)
+        return; const chapter = CHAPTERS[this.chapter]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][this.chapter]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle')).getSourceImage().toDataURL(); }
+    bindSocialWidgets() {
+        $('footer-chat').onclick = () => this.toggleWidget('chat');
+        $('footer-friends').onclick = () => this.toggleWidget('friends');
+        $('chat-close').onclick = () => this.closeWidgets();
+        $('friends-close').onclick = () => this.closeWidgets();
+        for (const button of document.querySelectorAll('[data-chat-tab]'))
+            button.onclick = () => { this.chatTab = button.dataset.chatTab ?? 'global'; document.querySelectorAll('[data-chat-tab]').forEach(item => item.classList.toggle('active', item === button)); this.renderChat(); };
+        for (const button of document.querySelectorAll('[data-friend-tab]'))
+            button.onclick = () => { this.friendTab = button.dataset.friendTab ?? 'list'; document.querySelectorAll('[data-friend-tab]').forEach(item => item.classList.toggle('active', item === button)); this.renderFriends(); };
+        $('chat-form').onsubmit = e => { e.preventDefault(); const input = $('chat-input'); const text = input.value.trim(); if (!text)
+            return; this.chatMessages[this.chatTab].push({ name: this.profile?.name ?? 'Você', text, own: true }); input.value = ''; this.renderChat(); };
+        this.renderChat();
+        this.renderFriends();
+    }
+    renderChat() { const box = $('chat-messages'); box.replaceChildren(); for (const message of this.chatMessages[this.chatTab] ?? []) {
+        const row = document.createElement('div');
+        row.className = 'chat-message' + (message.own ? ' own' : '');
+        const name = document.createElement('strong');
+        name.textContent = message.name;
+        const text = document.createElement('p');
+        text.textContent = message.text;
+        row.append(name, text);
+        box.append(row);
+    } box.scrollTop = box.scrollHeight; }
+    renderFriends() { const box = $('friends-content'); if (this.friendTab === 'requests') {
+        box.innerHTML = '<div class="friend-request"><div><strong>Thalia</strong><small>Quer adicionar você</small></div><div class="request-actions"><button class="mini-primary">Aceitar</button><button class="mini-button">Recusar</button></div></div><div class="friend-request"><div><strong>Orin</strong><small>Quer adicionar você</small></div><div class="request-actions"><button class="mini-primary">Aceitar</button><button class="mini-button">Recusar</button></div></div>';
+        return;
+    } if (this.friendTab === 'add') {
+        box.innerHTML = '<div class="friend-add"><p>Encontre um aventureiro pelo nome.</p><div class="friend-add-row"><input class="mp-input" placeholder="Nome do jogador" disabled /><button class="outline-button" disabled>Adicionar</button></div><small>O sistema de convites será conectado em breve.</small></div>';
+        return;
+    } box.innerHTML = '<div class="friend-row"><span class="presence online"></span><div><strong>Mira</strong><small>Online · Lyra</small></div><button class="friend-more" aria-label="Opções de Mira">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div><div class="friend-row"><span class="presence online"></span><div><strong>Riven</strong><small>Online · Kael</small></div><button class="friend-more" aria-label="Opções de Riven">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div><div class="friend-row"><span class="presence offline"></span><div><strong>Cael</strong><small>Offline · Sylva</small></div><button class="friend-more" aria-label="Opções de Cael">•••</button><div class="friend-menu hidden"><button disabled>Convidar</button><button disabled>Ver perfil</button><button disabled>Remover</button></div></div>'; for (const button of box.querySelectorAll('.friend-more'))
+        button.onclick = e => { e.stopPropagation(); const menu = button.nextElementSibling; box.querySelectorAll('.friend-menu').forEach(item => { if (item !== menu)
+            item.classList.add('hidden'); }); menu.classList.toggle('hidden'); }; }
+    toggleWidget(which) { const id = which === 'chat' ? 'chat-widget' : 'friends-widget'; const other = which === 'chat' ? 'friends-widget' : 'chat-widget'; const open = $(id).classList.contains('hidden'); visible(other, false); visible(id, open); $('footer-chat').setAttribute('aria-expanded', String(which === 'chat' && open)); $('footer-friends').setAttribute('aria-expanded', String(which === 'friends' && open)); }
+    closeWidgets() { visible('chat-widget', false); visible('friends-widget', false); $('footer-chat').setAttribute('aria-expanded', 'false'); $('footer-friends').setAttribute('aria-expanded', 'false'); }
     canPlay() { return !!this.profile && this.chapter <= this.profile.unlockedChapter && !this.scene.net.connecting; }
     async playSolo() { if (!this.canPlay())
         return; this.scene.unlockAudio(); await this.heroSave; this.scene.session = 'online'; this.scene.selectedMode = 'solo'; visible('mp-panel', true); visible('mp-entry', false); visible('mp-lobby', false); $('mp-status').textContent = 'Preparando sua jornada…'; await this.scene.net.connect(this.profile.name, '', 'solo', this.scene.selectedHero, this.chapter); }
@@ -157,6 +211,8 @@ export class Hub {
         await this.heroSave;
         await this.api('logout', {});
         this.profile = null;
+        this.setAuthChrome(true);
+        this.closeWidgets();
         await this.scene.goToMenu();
         visible('start-screen', false);
         visible('mp-panel', false);
@@ -172,3 +228,4 @@ export class Hub {
         $('settings-logout').disabled = false;
     } }
 }
+

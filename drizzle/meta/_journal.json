@@ -29,6 +29,13 @@
       "when": 1788829930233,
       "tag": "0003_reward_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788860693867,
+      "tag": "0004_hero_keys_shop_clans",
+      "breakpoints": true
     }
   ]
 }

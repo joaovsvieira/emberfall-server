@@ -147,3 +147,7 @@ Validação: combate dos dois heróis, limites e exclusões da cura, absorção/
 ## Atualização 0.8
 
 Amizades, chat global/privado, XP por herói, loot individual, equipamentos, mercado por gold, histórico, ranking semanal e admin. Veja [docs/GAME_SYSTEMS.md](docs/GAME_SYSTEMS.md) para regras, fórmulas, catálogo, transações, limites e acesso administrativo. Para habilitar sua conta no admin, configure `ADMIN_ACCOUNT_IDS` no Render; o ID aparece em Configurações no jogo.
+
+## Atualização 0.9
+
+Loja Pix (10 cristais por R$ 0,01, configuração do vendedor pendente), capítulos/chaves por herói, Mítica+, clãs e histórico do mercado. [Regras](docs/MYTHIC_CLANS.md) · [Ativar Pix no Render](docs/PIX_SETUP.md) · [Continuidade](PROJECT_STATUS.md).

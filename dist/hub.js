@@ -1,3 +1,4 @@
+import { Expansion } from './expansion.js';
 import { Features } from './features.js';
 import { HEROES, CHAPTERS } from './engine.js';
 const $ = (id) => document.getElementById(id);
@@ -14,7 +15,7 @@ export class Hub {
         this.heroSave = Promise.resolve();
         this.chatTab = 'global';
         this.friendTab = 'list';
-        for (const tab of ['heroes', 'map', 'history', 'market', 'ranking', 'settings'])
+        for (const tab of ['shop', 'heroes', 'map', 'history', 'market', 'ranking', 'clan', 'settings'])
             $('tab-' + tab).onclick = () => this.setTab(tab);
         $('auth-switch').onclick = () => { this.authMode = this.authMode === 'login' ? 'register' : 'login'; this.renderAuth(); };
         $('auth-form').onsubmit = e => { e.preventDefault(); void this.submit(); };
@@ -31,6 +32,7 @@ export class Hub {
         $('start').onclick = () => void this.playSolo();
         $('hero-to-map').onclick = () => this.setTab('map');
         this.features = new Features(this);
+        this.expansion = new Expansion(this);
         document.addEventListener('click', e => { const target = e.target; if (!target.closest('#account-menu'))
             this.closeAccountMenu(); });
         this.setAuthChrome(true);
@@ -81,6 +83,7 @@ export class Hub {
         if (e.status === 401) {
             this.profile = null;
             this.features?.reset();
+            this.expansion?.reset();
             this.setAuthChrome(true);
             visible('auth-screen', true);
             visible('start-screen', false);
@@ -109,6 +112,7 @@ export class Hub {
         if (first || initial)
             this.scene.selectHero(profile.preferredHero);
         this.features.accepted();
+        this.expansion.accepted();
         this.renderHeroes();
         this.renderMap();
         this.renderFooter();
@@ -127,13 +131,13 @@ export class Hub {
             }
         }
     }
-    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['heroes', 'map', 'history', 'market', 'ranking', 'settings']) {
+    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['shop', 'heroes', 'map', 'history', 'market', 'ranking', 'clan', 'settings']) {
         visible('panel-' + name, name === tab);
         $('tab-' + name).setAttribute('aria-selected', String(name === tab));
-    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); this.features.open(tab); }
+    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); this.features.open(tab); this.expansion.open(tab); }
     syncSound() { $('settings-sound').textContent = $('sound').getAttribute('aria-label') === 'Desativar som' ? 'Som: ativado' : 'Som: desativado'; }
     heroSelected(hero) { if (!this.profile)
-        return; this.profile.preferredHero = hero; this.renderHeroes(); this.renderFooter(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
+        return; this.profile.preferredHero = hero; this.renderMap(); this.renderHeroes(); this.renderFooter(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
         await this.api('hero', { hero });
     }
     catch (e) {
@@ -158,7 +162,7 @@ export class Hub {
     renderMap() {
         if (!this.profile)
             return;
-        const unlocked = this.profile.unlockedChapter;
+        const unlocked = this.heroProgress();
         for (let id = 1; id <= 3; id++) {
             const button = $('map-' + id);
             button.classList.toggle('locked', id > unlocked);
@@ -169,17 +173,19 @@ export class Hub {
         const selected = CHAPTERS[this.chapter];
         $('selected-map-name').textContent = selected.name;
         $('selected-map-copy').textContent = this.chapter > unlocked ? 'Conclua o capítulo anterior para liberar este destino.' : `${selected.boss} espera por você. Escolha como entrar no mapa.`;
-        for (const id of ['start', 'multiplayer', 'pvp'])
+        for (const id of ['start', 'multiplayer'])
             $(id).disabled = this.chapter > unlocked || this.scene.net.connecting;
+        $('pvp').disabled = this.scene.net.connecting;
     }
     setAuthChrome(auth) { $('shell').classList.toggle('auth-active', auth); }
     toggleAccountMenu() { const open = $('account-dropdown').classList.contains('hidden'); visible('account-dropdown', open); $('account-trigger').setAttribute('aria-expanded', String(open)); }
     closeAccountMenu() { visible('account-dropdown', false); $('account-trigger').setAttribute('aria-expanded', 'false'); }
     renderFooter() { if (!this.profile)
-        return; const chapter = CHAPTERS[this.chapter]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][this.chapter]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle')).getSourceImage().toDataURL(); }
+        return; const progress = this.heroProgress(); const chapter = CHAPTERS[progress]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][progress]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle')).getSourceImage().toDataURL(); }
     toggleWidget(which) { const id = which === 'chat' ? 'chat-widget' : 'friends-widget'; const other = which === 'chat' ? 'friends-widget' : 'chat-widget'; const open = $(id).classList.contains('hidden'); visible(other, false); visible(id, open); $('footer-chat').setAttribute('aria-expanded', String(which === 'chat' && open)); $('footer-friends').setAttribute('aria-expanded', String(which === 'friends' && open)); }
     closeWidgets() { visible('chat-widget', false); visible('friends-widget', false); $('footer-chat').setAttribute('aria-expanded', 'false'); $('footer-friends').setAttribute('aria-expanded', 'false'); }
-    canPlay() { return !!this.profile && this.chapter <= this.profile.unlockedChapter && !this.scene.net.connecting; }
+    heroProgress() { return this.profile?.heroes.find((h) => h.id === this.scene.selectedHero)?.unlockedChapter ?? 1; }
+    canPlay() { return !!this.profile && this.chapter <= this.heroProgress() && !this.scene.net.connecting; }
     async playSolo() { if (!this.canPlay())
         return; this.scene.unlockAudio(); await this.heroSave; this.scene.session = 'online'; this.scene.selectedMode = 'solo'; visible('mp-panel', true); visible('mp-entry', false); visible('mp-lobby', false); $('mp-status').textContent = 'Preparando sua jornada…'; await this.scene.net.connect(this.profile.name, '', 'solo', this.scene.selectedHero, this.chapter); }
     async logout() { if (this.busy)
@@ -188,6 +194,7 @@ export class Hub {
         await this.api('logout', {});
         this.profile = null;
         this.features?.reset();
+        this.expansion?.reset();
         this.setAuthChrome(true);
         this.closeWidgets();
         await this.scene.goToMenu();

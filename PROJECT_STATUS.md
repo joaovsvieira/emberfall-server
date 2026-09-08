@@ -1,6 +1,6 @@
 # Emberfall — estado e continuidade
 
-Atualização 0.8: amizades, chat, progressão, inventário, mercado, histórico, rankings e admin. Leia docs/GAME_SYSTEMS.md para regras, configuração e extensão. Leia também README.md e os testes antes de alterar o projeto.
+Atualização 0.9: loja Pix, cristais, Mítica+, capítulos por herói, clãs e histórico do mercado. Leia docs/MYTHIC_CLANS.md e docs/PIX_SETUP.md. Leia docs/GAME_SYSTEMS.md para regras, configuração e extensão. Leia também README.md e os testes antes de alterar o projeto.
 
 ## Identidade e direção
 
@@ -9,12 +9,12 @@ Emberfall — Ecos da Floresta é um jogo original de plataforma 2D e combate in
 ## Estado atual
 
 - Cadastro com usuário de 3–18 letras/números/_ e senha de 8–128 caracteres. Sessão HttpOnly por 30 dias; F5 restaura via /api/me. Não há recuperação de senha por e-mail nesta versão.
-- Menu desktop: Loja (desabilitada), Heróis, Histórico, Mapa, Mercado, Ranking, Configurações. Login/F5 sempre abre no mapa.
-- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado) e Sylva (arqueira verde). Preferência do herói fica na conta. XP/nível, equipamentos e inventário são individuais por herói; gold é da conta. Habilidades continuam disponíveis. Itens de outra classe ficam no herói que recebeu e só podem ser vendidos, nunca transferidos diretamente a outro herói.
-- Mapa tem floresta, caldeira e cidadela de gelo. Só capítulo I inicia liberado. Vitória PvE/solo libera o seguinte; PvP não libera. Cada participante precisa ter o mapa liberado, inclusive quem entra por convite.
-- Solo agora usa uma sala autoritativa para 1 pessoa, inicia automaticamente após autenticar. PvE começa com 2–4, todos prontos; PvP com 2. Cada mapa tem arena PvP sem inimigos ou perigos ambientais.
+- Menu desktop: Loja, Heróis, Histórico, Mapa, Mercado, Ranking, Clã, Configurações. Login/F5 sempre abre no mapa.
+- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado) e Sylva (arqueira verde). Preferência do herói fica na conta. XP/nível, capítulos, chaves, equipamentos e inventário são individuais por herói; gold é da conta. Habilidades continuam disponíveis. Itens de outra classe ficam no herói que recebeu e só podem ser vendidos, nunca transferidos diretamente a outro herói.
+- Mapa tem floresta, caldeira e cidadela de gelo. Só capítulo I inicia liberado. Vitória PvE/solo libera o seguinte; PvP não libera. Desbloqueio é por herói. Criador e convidados PvE precisam liberar o mapa; convidados PvP podem jogar bloqueados. Rodapé usa progresso do herói.
+- Solo agora usa uma sala autoritativa para 1 pessoa, abre lobby explícito com chave opcional, pronto e iniciar. PvE começa com 2–4, todos prontos; PvP com 2. Cada mapa tem arena PvP sem inimigos ou perigos ambientais.
 - A/D/setas movem, W/cima/espaço pulam duas vezes, clique esquerdo ataca, Shift/K esquiva, Q/U e E/I são habilidades. Teclas só afetam a partida ativa. Escape pausa, menu oferece retorno.
-- Loja premium permanece desabilitada. Mercado usa somente gold. Configurações: tela cheia, som, ID da conta e desconectar. Não há pagamento real.
+- Loja oferece 10 cristais por R$ 0,01 via Mercado Pago/Pix, aguardando configuração do vendedor. Mercado usa gold e registra compras/vendas. Configurações: tela cheia, som, ID da conta e desconectar. Recebimento real e aceitação de R$ 0,01 dependem de credenciais e validação do vendedor.
 
 ## Arquitetura e publicação
 
@@ -37,10 +37,14 @@ O usuário prefere implementação autônoma com atualização do GitHub e publi
 
 Admin próprio em /admin consulta contas e sessões; monitor oficial @colyseus/monitor em /admin/monitor/. Ambos exigem sessão e ADMIN_ACCOUNT_IDS configurado no Render. Nunca retornar hashes ou promover usuário automaticamente. Consulte docs/GAME_SYSTEMS.md.
 
-## Regras da atualização 0.8
+## Regras persistentes
 
 - Modal final obrigatório, loot individual (gold + item), XP por morte confirmada no servidor. Recompensas idempotentes e compra/venda atômicas no D1.
 - Ranking semanal: segunda 00:00 Brasília; solo/equipe por tempo e fase, PvP por abates reais. Histórico preservado, paginação 20.
-- Amigos com solicitação/aceite e presença por sessão; global e privado persistentes. Aba guilda indisponível até criar guildas.
+- Amigos com solicitação/aceite e presença por sessão; global e privado persistentes. Chat do clã disponível; criar custa 1.000 gold, cargos admin/membro, baú prévia.
 - Inventário/catalogo ainda carregados inteiros no perfil; paginar antes de grandes volumes. Salas/retries temporários não sobrevivem ao encerramento do processo; veja limitações documentadas.
 - Publicar Worker/migração antes do frontend/API no Render. Não reescrever migrações aplicadas.
+
+## Continuidade 0.9
+
+Mítica+: host ativa a própria chave, por capítulo/herói, +2 inicial, uma concessão semanal; tempo real corre durante pausas. Limites 8/10/12min, bônus até +3. Quebra impede refarm até a próxima semana. Filtro Mítica+ no ranking. Migração 0004 recupera capítulos por herói a partir das vitórias históricas, usando o herói padrão apenas para legados sem identidade. Testes adicionais em tests/mythic-shop-clan.test.mjs. Nenhum pagamento bancário real foi realizado.

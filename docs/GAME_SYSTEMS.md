@@ -1,4 +1,6 @@
-# Emberfall 0.8 — progressão, comunidade e economia
+# Emberfall — progressão, comunidade e economia
+
+Atualização 0.9: [MYTHIC_CLANS.md](MYTHIC_CLANS.md) e [PIX_SETUP.md](PIX_SETUP.md) complementam e substituem as limitações antigas correspondentes.
 
 ## Regras de produto
 
@@ -10,7 +12,7 @@
 - Equipamentos não são equipados automaticamente. Slots: cabeça, armadura, arma, luvas, botas, acessório. Um por slot. Itens anunciados ficam reservados e não podem ser equipados.
 - Compra usa gold da conta. O comprador escolhe o herói destinatário. A classe e o nível mínimo ainda precisam coincidir para equipar. Não é permitido comprar o próprio anúncio. Venda sem taxa nesta versão.
 - Amizade exige solicitação e aceite. Pesquisa por nome de usuário, mínimo de 3 caracteres. Solicitações pendentes e amizades existentes não exibem novo botão de adicionar.
-- Chat global e conversas privadas entre amigos são persistentes. Remover amizade bloqueia leitura/envio privado até restabelecer a amizade. Guilda é uma aba informativa indisponível até existir associação real a guildas.
+- Chat global e conversas privadas entre amigos são persistentes. Remover amizade bloqueia leitura/envio privado até restabelecer a amizade. Chat de clã exige associação e funciona no widget e na página.
 - Presença usa heartbeat por sessão de navegador a cada 25 segundos e expira após 75 segundos. Logout revoga a presença daquela sessão imediatamente. Outra sessão válida pode manter o jogador online. Amigos e chat são atualizados a cada 5 segundos enquanto o widget está aberto.
 - Histórico guarda solo, equipe e PvP, com filtro de modo e páginas de 20, mais recentes primeiro. Partidas encerradas por saída recebem resultado `left`; partidas interrompidas por queda definitiva do processo antes da gravação não são inventadas como concluídas.
 

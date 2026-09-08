@@ -51,5 +51,5 @@ test('two real WebSocket clients share lobby, movement, combat, reconnection and
   b.connection.close(CloseCode.MAY_TRY_RECONNECT);await until(()=>sb.dropped,'Transport drop detected');await until(()=>sb.reconnected,'SDK reconnects',8000);await until(()=>sa.lobby.members.every(m=>m.connected),'Seat preserved after reconnect');assert.equal(room.members.size,2);
   for(const p of room.world.players){p.x=4300;p.y=615;p.hp=100;p.invincible=5;}room.world.bossActive=true;const boss=room.world.enemies.at(-1);boss.x=4390;boss.hp=20;
   a.send('input',{seq:++seq,input:{attack:true}});await until(()=>sa.snapshot.status==='won'&&sb.snapshot.status==='won','Victory shared');
-  a.send('restart');await until(()=>sa.lobby.round===2&&sb.lobby.round===2,'Host can restart same room');assert.equal(a.roomId,b.roomId);
+  a.send('restart');await until(()=>room.stage==='lobby','restart lobby');a.send('ready',true);b.send('ready',true);await until(()=>[...room.members.values()].every(m=>m.ready),'restart ready');a.send('start');await until(()=>sa.lobby.round===2&&sb.lobby.round===2,'Host can restart same room');assert.equal(a.roomId,b.roomId);
 });

@@ -48,6 +48,7 @@ export class World {
         this.enemies = [];
         this.projectiles = [];
         this.pickups = [];
+        this.enemyDamageScale = 1;
         this.chapter = chapter === 3 ? 3 : chapter === 2 ? 2 : 1;
         const specs = [['goblin', 760, 615], ['goblin', 1030, 615], ['bat', 1480, 492], ['goblin', 1630, 615], ['wraith', 1900, 490], ['goblin', 2190, 615], ['bat', 2690, 450], ['wraith', 2850, 505], ['goblin', 3460, 615], ['bat', 3640, 460], ['boss', 4390, 615]];
         if (this.chapter === 2)
@@ -64,7 +65,7 @@ export class World {
     emit(type, extra = {}) { this.events.push({ type, playerId: this.player.id, ...extra }); }
     start() { this.status = 'playing'; this.emit('toast', { text: 'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar' }); }
     damagePlayer(amount, sourceX) { const p = this.player; if (p.invincible > 0 || this.status !== 'playing')
-        return; amount = Math.max(1, Math.round(amount * 100 / (100 + p.defense))); const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
+        return; amount = Math.max(1, Math.round(amount * (this.mode === 'pvp' ? 1 : this.enemyDamageScale) * 100 / (100 + p.defense))); const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
         this.emit('blocked', { x: p.x, y: p.y - 85, value: absorbed }); p.hp = Math.max(0, p.hp - amount); p.invincible = this.mode === 'pvp' ? .22 : 1.15; p.vx = (p.x >= sourceX ? 1 : -1) * 240; this.hitCount = 0; this.emit('hurt', { x: p.x, y: p.y - 65, value: amount }); if (p.hp <= 0) {
         p.vx = 0;
         p.vy = 0;

@@ -347,7 +347,7 @@ export class ForestScene extends Phaser.Scene {
         this.net.command('pause', false); this.pending = []; this.controls.reset(); show('modal', false); $('modal-primary').blur(); }
     openControls() { this.controlsOpen = true; this.showModal('PREPARE SUA ESPADA', 'Como jogar', 'Domine o movimento. Encontre o ritmo dos golpes.', 'ENTENDI'); show('controls-list', true); show('modal-secondary', false); show('modal-menu', false); this.primaryAction = 'controls'; }
     closeControls() { this.controlsOpen = false; show('modal', false); show('controls-list', false); $('controls').focus(); }
-    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); show('chapter-loot', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-menu').focus()); }
+    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); show('chapter-loot', false); show('mythic-result', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-menu').focus()); }
     toast(text) { $('toast').textContent = text; $('toast').style.opacity = '1'; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => $('toast').style.opacity = '0', 4200); }
     update(_time, delta) {
         if (!this.uiReady)
@@ -543,11 +543,14 @@ export class ForestScene extends Phaser.Scene {
         }
     }
     bindMultiplayer() {
-        const openOnline = (mode) => { if (!this.hub?.canPlay())
-            return; this.selectedMode = mode; audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); this.setModeTitle(mode); $('mp-status').textContent = ''; this.controls.reset(); $('mp-name').focus(); };
+        const openOnline = (mode) => { if (!this.hub?.profile || this.net.connecting || (mode !== 'pvp' && !this.hub.canPlay()))
+            return; this.selectedMode = mode; audioUnlock(); show('mp-panel', true); show('mp-entry', true); show('mp-lobby', false); this.setModeTitle(mode); $('mp-create').disabled = !this.hub.canPlay(); $('mp-status').textContent = ''; this.controls.reset(); $('mp-name').focus(); };
         $('multiplayer').onclick = () => openOnline('coop');
         $('pvp').onclick = () => openOnline('pvp');
-        const connect = (join) => { const name = $('mp-name').value.trim(), raw = $('mp-code').value.trim(); let code = raw.toUpperCase(); try {
+        const connect = (join) => { if (!join && !this.hub.canPlay()) {
+            $('mp-status').textContent = 'Este herói precisa liberar o mapa para criar a sala.';
+            return;
+        } const name = $('mp-name').value.trim(), raw = $('mp-code').value.trim(); let code = raw.toUpperCase(); try {
             code = new URL(raw).searchParams.get('room')?.toUpperCase() ?? code;
         }
         catch { } ; if (name.length < 2) {
@@ -560,6 +563,7 @@ export class ForestScene extends Phaser.Scene {
         $('mp-create').onclick = () => connect(false);
         $('mp-join-form').onsubmit = e => { e.preventDefault(); connect(true); };
         $('mp-back').onclick = () => void this.goToMenu();
+        $('mp-key').onchange = () => this.net.command('key', $('mp-key').checked);
         $('mp-ready').onclick = () => { const own = this.net.lobby?.members.find((m) => m.id === this.net.id); this.net.command('ready', !own?.ready); };
         $('mp-start').onclick = () => { audioUnlock(); this.net.command('start'); };
         $('mp-copy').onclick = async () => { try {
@@ -681,6 +685,7 @@ export class ForestScene extends Phaser.Scene {
             this.world.pickups = s.pickups;
             if (chapterChanged || this.renderedChapter !== this.world.chapter || s.enemies.some((e) => !this.actors.has(e.id)))
                 this.rebuildLevel();
+            this.renderMythic(s.mythic);
             if (s.stage === 'countdown') {
                 show('mp-panel', true);
                 show('mp-lobby', true);
@@ -710,17 +715,15 @@ export class ForestScene extends Phaser.Scene {
             this.event(ev);
         } };
     }
+    renderMythic(m) { show('mythic-hud', !!m); if (!m)
+        return; const seconds = Math.ceil(m.remainingMs / 1000), required = Math.ceil((m.total || 0) * .95); $('mythic-title').textContent = `MÍTICA +${m.level}`; $('mythic-timer').textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; $('mythic-forces').textContent = `Forças: ${m.killed} / ${required} · 95% concede +1`; $('mythic-objectives').textContent = `Tempo: +2 até ${Math.floor(m.limitMs * .6 / 60000)}:${String(Math.floor(m.limitMs * .6 / 1000) % 60).padStart(2, '0')} · +1 até ${Math.floor(m.limitMs * .8 / 60000)}:${String(Math.floor(m.limitMs * .8 / 1000) % 60).padStart(2, '0')}`; $('mythic-upgrade').textContent = m.upgrade === null ? 'Tempo esgotado · chave quebrada' : `Bônus atual se vencer: +${m.upgrade}`; }
     renderLobby(s) {
-        if (s.stage === 'lobby' && this.net.active)
+        if (s.stage === 'lobby' && this.net.active) {
             show('mp-panel', true);
-        this.setModeTitle(s.mode ?? 'coop');
-        if (s.mode === 'solo' && s.stage === 'lobby') {
-            const own = s.members.find((m) => m.id === this.net.id);
-            if (own?.ready)
-                this.net.command('start');
-            else
-                this.net.command('ready', true);
+            show('modal', false);
+            this.resultShown = false;
         }
+        this.setModeTitle(s.mode ?? 'coop');
         $('mp-start').textContent = s.mode === 'pvp' ? 'INICIAR DUELO' : 'INICIAR JORNADA';
         show('mp-entry', false);
         show('mp-lobby', true);
@@ -752,11 +755,18 @@ export class ForestScene extends Phaser.Scene {
                 this.updateCampaignButtons();
         }
         const own = s.members.find((m) => m.id === this.net.id), host = s.host === this.net.id;
+        show('mp-key-box', s.mode !== 'pvp');
+        const keyInput = $('mp-key');
+        keyInput.checked = !!s.useKey;
+        keyInput.disabled = !host || s.stage !== 'lobby' || s.key?.status !== 'available';
+        $('mp-key-label').textContent = s.key?.status === 'available' ? `Ativar chave +${s.key.level} do anfitrião neste capítulo` : 'Modo normal · anfitrião sem chave disponível neste capítulo';
+        $('mp-key-info').textContent = s.useKey ? 'A chave é consumida ao iniciar. Tempo esgotado, derrota ou abandono quebram a chave.' : 'Conclua no modo normal para obter a chave +2 deste herói e capítulo, uma vez por semana.';
+        document.querySelectorAll('.room-code-label,.room-code-row,#mp-copy-link').forEach(el => el.classList.toggle('hidden', s.mode === 'solo'));
         $('mp-ready').textContent = own?.ready ? 'PRONTO ✓ · CANCELAR' : 'ESTOU PRONTO';
         $('mp-ready').disabled = s.stage !== 'lobby';
         show('mp-start', host);
-        $('mp-start').disabled = s.stage !== 'lobby' || s.members.length < (s.mode === 'solo' ? 1 : 2) || s.members.some((m) => !m.ready || !m.connected);
-        $('mp-lobby-hint').textContent = s.stage === 'countdown' ? 'A partida está começando…' : s.members.length < 2 ? 'Envie o código para um amigo entrar.' : host ? 'Com 2 a 4 jogadores, todos na sala devem estar prontos para iniciar.' : 'Marque-se como pronto. O anfitrião inicia a jornada.';
+        $('mp-start').disabled = s.stage !== 'lobby' || s.members.length < (s.mode === 'solo' || s.mode === 'coop' && s.round > 0 ? 1 : 2) || s.members.some((m) => !m.ready || !m.connected);
+        $('mp-lobby-hint').textContent = s.stage === 'countdown' ? 'A partida está começando…' : s.mode === 'solo' ? 'Escolha o modo, marque pronto e inicie sua jornada.' : s.members.length < 2 ? 'Envie o código para um amigo entrar.' : host ? 'Com 2 a 4 jogadores, todos na sala devem estar prontos para iniciar.' : 'Marque-se como pronto. O anfitrião inicia a jornada.';
         show('mp-countdown', s.stage === 'countdown');
         $('mp-countdown').textContent = String(s.countdown);
         if (s.stage === 'playing' && this.net.connected) {
@@ -788,7 +798,7 @@ export class ForestScene extends Phaser.Scene {
         }
         this.remoteActors.clear();
         this.rebuildLevel();
-        for (const id of ['mp-panel', 'modal', 'hud', 'pause', 'touch', 'peer-hud', 'session-hud', 'network-banner', 'duel-hud', 'boss-hud'])
+        for (const id of ['mythic-hud', 'mp-panel', 'modal', 'hud', 'pause', 'touch', 'peer-hud', 'session-hud', 'network-banner', 'duel-hud', 'boss-hud'])
             show(id, false);
         for (const id of ['mp-create', 'mp-join', 'mp-name', 'mp-code'])
             $(id).disabled = false;
@@ -974,6 +984,10 @@ export class ForestScene extends Phaser.Scene {
     } if (this.session === 'online' && progress === 'saved')
         this.primaryAction = this.world.status === 'won' && this.world.chapter < 3 ? 'next' : 'restart'; const allowed = this.session === 'solo' || (this.net.connected && this.net.lobby?.host === this.net.id && this.net.lobby.members.every((m) => m.connected)); $('modal-primary').disabled = !allowed; $('modal-secondary').disabled = !allowed; $('modal-primary').textContent = allowed ? (this.primaryAction === 'next' ? `IR PARA O CAPÍTULO ${this.world.chapter === 1 ? 'II' : 'III'}` : 'REINICIAR CAPÍTULO') : 'AGUARDANDO O ANFITRIÃO'; }
     renderLoot() {
+        const mythic = this.net.snapshot?.mythic;
+        show('mythic-result', !!mythic && this.session === 'online');
+        if (mythic)
+            $('mythic-result').textContent = this.world.status === 'won' && mythic.upgrade !== null ? `Mítica +${mythic.level} concluída · chave do anfitrião passa para +${Math.min(100, mythic.level + mythic.upgrade)} (${mythic.upgrade === 0 ? 'nível mantido' : '+' + mythic.upgrade + ' níveis'}).` : 'Chave quebrada. Nova chave após a virada semanal e uma conclusão normal.';
         const reward = this.net.rewards, visible = this.world.status === 'won' && this.world.mode !== 'pvp' && this.session === 'online';
         show('chapter-loot', visible);
         if (!visible)

@@ -1,3 +1,5 @@
+> Atualização 0.10: consulte [ADVENTURE_SYSTEMS.md](ADVENTURE_SYSTEMS.md) para profissões, poções, correio, baús, conquistas, skins e as novas regras de chave/vidas. Esse documento prevalece sobre regras anteriores.
+
 # Emberfall — progressão, comunidade e economia
 
 Atualização 0.9: [MYTHIC_CLANS.md](MYTHIC_CLANS.md) e [PIX_SETUP.md](PIX_SETUP.md) complementam e substituem as limitações antigas correspondentes.

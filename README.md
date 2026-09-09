@@ -1,3 +1,5 @@
+> Atualização 0.10: consulte [docs/ADVENTURE_SYSTEMS.md](docs/ADVENTURE_SYSTEMS.md) para profissões, poções, correio, baús, conquistas, skins e as novas regras de chave/vidas. Esse documento prevalece sobre regras anteriores.
+
 # Emberfall — Ecos da Floresta
 
 Jogo de plataforma e combate 2D com modo solo e cooperativo online para **2 a 4 jogadores** e PvP 1 contra 1. Phaser 3.90.0, TypeScript e servidor autoritativo Node.js com Colyseus 0.18.

@@ -24,10 +24,10 @@ test('coop uses one enemy simulation, independent cooldowns and shared kills',()
   w.updateCoop(1/60,{one:{actions:['skill2']}});assert.equal(w.enemies[0].dead,true);assert.equal(w.kills,1);assert.equal(w.players[1].skill2,0);assert.equal(w.players[0].skill2,10);
   const time=w.time;w.updateCoop(1/60,{});assert.ok(Math.abs(w.time-time-1/60)<1e-9);
 });
-test('downed companion can be revived and party defeat requires both players',()=>{
+test('all downed companions respawn with infinite chapter lives',()=>{
   const w=new World();w.players=[createPlayer('one','One',190),createPlayer('two','Two',240)];w.player=w.players[0];w.enemies=[];w.start();w.damagePlayer(100,0);assert.equal(w.status,'playing');
-  for(let i=0;i<155;i++)w.updateCoop(1/60,{});assert.equal(w.players[0].hp,40);
-  w.players[0].invincible=0;w.damagePlayer(100,0);w.player=w.players[1];w.damagePlayer(100,0);assert.equal(w.status,'dead');
+  for(let i=0;i<190;i++)w.updateCoop(1/60,{});assert.equal(w.players[0].hp,100);
+  w.players[0].invincible=0;w.damagePlayer(100,0);w.player=w.players[1];w.damagePlayer(100,0);assert.equal(w.status,'playing');for(let i=0;i<190;i++)w.updateCoop(1/60,{});assert.ok(w.players.every(p=>p.hp===p.maxHp));
 });
 test('boss gate waits for both living players',()=>{
   const w=new World();w.players=[createPlayer('one','One',3950),createPlayer('two','Two',2000)];w.player=w.players[0];w.start();w.updateCoop(1/60,{});assert.equal(w.bossActive,false);w.players[1].x=3900;w.updateCoop(1/60,{});assert.equal(w.bossActive,true);

@@ -82,12 +82,16 @@ export class ForestScene extends Phaser.Scene {
         this.resultShown = false;
     }
     unlockAudio() { audioUnlock(); }
-    preload() { this.load.image('forest', 'assets/forest.png'); this.load.image('atlas', 'assets/characters.png'); this.load.image('lyra-sheet', 'assets/lyra.png'); this.load.image('caldera', 'assets/caldera.png'); this.load.image('frosthold', 'assets/frosthold.png'); for (const id of ['aurel', 'sylva'])
+    preload() { for (const id of ['kael-astral', 'volcanic-enemies', 'ice-enemies', 'forest-dragon'])
+        this.load.image(id + '-sheet', `assets/${id}.png`); this.load.image('forest', 'assets/forest.png'); this.load.image('atlas', 'assets/characters.png'); this.load.image('lyra-sheet', 'assets/lyra.png'); this.load.image('caldera', 'assets/caldera.png'); this.load.image('frosthold', 'assets/frosthold.png'); for (const id of ['aurel', 'sylva'])
         this.load.image(id + '-sheet', `assets/${id}.png`); this.load.on('progress', (v) => { $('load-fill').style.width = `${v * 100}%`; }); this.load.on('loaderror', () => { $('loading').querySelector('p').textContent = 'Não foi possível carregar a arte. Recarregue a página para tentar novamente.'; }); }
     create() {
         scene = this;
         if (['forest', 'atlas', 'lyra-sheet', 'caldera', 'aurel-sheet', 'sylva-sheet', 'frosthold'].some(key => !this.textures.exists(key)))
             return;
+        window.addEventListener('keydown', e => { if (e.code === 'Space' && !$('modal').classList.contains('hidden') && !(e.target?.closest?.('input,textarea,select'))) {
+            e.preventDefault();
+        } }, true);
         this.createTextures();
         this.bg = this.add.tileSprite(0, 0, 1280, 720, 'forest').setOrigin(0).setScrollFactor(0).setDepth(-10);
         this.bg.setTileScale(1280 / 1536, 720 / 1024);
@@ -105,7 +109,7 @@ export class ForestScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, LEVEL_WIDTH, 720);
         this.input.keyboard.clearCaptures();
         this.input.keyboard.enabled = false;
-        this.controls = new GameControls(() => this.canControl(), () => this.togglePause(), window, this.game.canvas);
+        this.controls = new GameControls(() => this.canControl(), () => this.togglePause(), window, this.game.canvas, slot => this.net.command('potion', slot));
         this.rebuildLevel();
         const idleCanvas = this.textures.get('idle').getSourceImage();
         $('portrait').src = idleCanvas.toDataURL();
@@ -177,6 +181,20 @@ export class ForestScene extends Phaser.Scene {
                 tex.refresh();
             }
         }
+        const sheets = {
+            'kael-astral': { 'kael_astral-idle': [19, 35, 552, 625], 'kael_astral-run1': [628, 82, 1156, 615], 'kael_astral-run2': [26, 674, 586, 1198], 'kael_astral-slash': [640, 649, 1247, 1196] },
+            'volcanic-enemies': { lava_imp: [88, 162, 550, 562], ashwing: [572, 44, 1206, 521], ember_mage: [43, 635, 544, 1189], obsidian_guardian: [544, 558, 1231, 1229] },
+            'ice-enemies': { frost_reaver: [23, 71, 495, 590], ice_wyvern: [495, 45, 1233, 573], frost_sorcerer: [67, 648, 433, 1204], ice_dragon: [435, 583, 1231, 1207] },
+            'forest-dragon': { forest_dragon: [160, 11, 1471, 983] }
+        };
+        for (const [sheet, frames] of Object.entries(sheets)) {
+            const source = this.textures.get(sheet + '-sheet').getSourceImage();
+            for (const [name, [x, y, right, bottom]] of Object.entries(frames)) {
+                const tex = this.textures.createCanvas(name, right - x, bottom - y);
+                tex.context.drawImage(source, x, y, right - x, bottom - y, 0, 0, right - x, bottom - y);
+                tex.refresh();
+            }
+        }
         const frost = this.textures.createCanvas('froststone', 700, 150);
         frost.context.drawImage(this.textures.get('frosthold').getSourceImage(), 400, 824, 700, 150, 0, 0, 700, 150);
         frost.refresh();
@@ -188,7 +206,8 @@ export class ForestScene extends Phaser.Scene {
         tex.refresh();
     }
     sizeActor(actor, key, height) { actor.setTexture(key); const source = this.textures.get(key).getSourceImage(); actor.setDisplaySize(height * source.width / source.height, height); }
-    heroKey(hero, key) { return hero === 'kael' ? key : `${hero}-${key}`; }
+    heroKey(hero, key, skin = 'default') { return hero === 'kael' ? (skin === 'kael_astral' ? `kael_astral-${key}` : key) : `${hero}-${key}`; }
+    menuSound() { audioUnlock(); tone(660, .075, 'sine', .018, 120); }
     rebuildLevel() {
         for (const a of this.levelArt)
             a.destroy();
@@ -214,8 +233,8 @@ export class ForestScene extends Phaser.Scene {
         for (const [i, x] of [215, 1790, 4080].entries())
             this.levelArt.push(this.add.text(x, i === 0 ? 535 : i === 1 ? 419 : 335, level.zones[i], { fontFamily: 'Georgia', fontSize: '13px', color: cold ? '#c0eeff' : hot ? '#efad89' : '#dbd7b0', letterSpacing: 3 }).setAlpha(.65));
         for (const e of this.world.enemies) {
-            const a = this.add.image(e.x, e.y, e.kind).setOrigin(.5, 1).setDepth(4);
-            this.sizeActor(a, e.kind, e.kind === 'boss' ? 244 : e.kind === 'goblin' ? 88 : e.kind === 'bat' ? 100 : 135);
+            const a = this.add.image(e.x, e.y, e.species ?? e.kind).setOrigin(.5, 1).setDepth(4);
+            this.sizeActor(a, e.species ?? e.kind, e.kind === 'boss' ? 244 : e.kind === 'goblin' ? 88 : e.kind === 'bat' ? 100 : 135);
             this.actors.set(e.id, a);
         }
         for (const a of this.ambient)
@@ -248,9 +267,9 @@ export class ForestScene extends Phaser.Scene {
         this.updateHeroHUD();
         this.hub?.heroSelected(hero);
     }
-    updateHeroHUD() { const id = this.world.player.hero ?? 'kael', hero = HEROES[id]; if (this.portraitHero !== id) {
-        $('portrait').src = this.textures.get(this.heroKey(id, 'idle')).getSourceImage().toDataURL();
-        this.portraitHero = id;
+    updateHeroHUD() { const id = this.world.player.hero ?? 'kael', hero = HEROES[id]; const appearance = id + ':' + this.world.player.skin; if (this.portraitHero !== appearance) {
+        $('portrait').src = this.textures.get(this.heroKey(id, 'idle', this.world.player.skin)).getSourceImage().toDataURL();
+        this.portraitHero = appearance;
     } $('hero-role').textContent = hero.role.toUpperCase(); $('skill-name-1').textContent = hero.skill1.toUpperCase(); $('skill-name-2').textContent = hero.skill2.toUpperCase(); $('attack-label').textContent = hero.attack; }
     performModalAction(action) { if (this.transitioning)
         return; if (action === 'retry-progress') {
@@ -347,7 +366,7 @@ export class ForestScene extends Phaser.Scene {
         this.net.command('pause', false); this.pending = []; this.controls.reset(); show('modal', false); $('modal-primary').blur(); }
     openControls() { this.controlsOpen = true; this.showModal('PREPARE SUA ESPADA', 'Como jogar', 'Domine o movimento. Encontre o ritmo dos golpes.', 'ENTENDI'); show('controls-list', true); show('modal-secondary', false); show('modal-menu', false); this.primaryAction = 'controls'; }
     closeControls() { this.controlsOpen = false; show('modal', false); show('controls-list', false); $('controls').focus(); }
-    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); show('chapter-loot', false); show('mythic-result', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); requestAnimationFrame(() => $('modal-menu').focus()); }
+    showModal(eyebrow, title, copy, button) { this.controls.reset(); this.pending = []; this.held = { left: false, right: false }; show('pvp-result', false); show('chapter-loot', false); show('mythic-result', false); this.primaryAction = 'resume'; this.secondaryAction = 'restart'; show('modal-menu', !this.controlsOpen); $('modal-menu').textContent = 'Menu principal'; $('modal-secondary').textContent = 'Reiniciar capítulo'; $('modal-eyebrow').textContent = eyebrow; $('modal-title').textContent = title; $('modal-copy').textContent = copy; $('modal-primary').textContent = button; show('controls-list', false); show('modal-secondary', true); $('modal-primary').disabled = false; show('modal', true); $('modal').setAttribute('tabindex', '-1'); requestAnimationFrame(() => $('modal').focus()); }
     toast(text) { $('toast').textContent = text; $('toast').style.opacity = '1'; clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => $('toast').style.opacity = '0', 4200); }
     update(_time, delta) {
         if (!this.uiReady)
@@ -418,12 +437,12 @@ export class ForestScene extends Phaser.Scene {
         this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, target, .09);
         this.bg.tilePositionX = this.cameras.main.scrollX * .13;
         const key = p.attack > 0 ? 'slash' : !p.grounded || Math.abs(p.vx) > 45 ? (Math.floor(this.world.time * 10) % 2 ? 'run1' : 'run2') : 'idle';
-        this.sizeActor(this.hero, this.heroKey(p.hero, key), 126);
+        this.sizeActor(this.hero, this.heroKey(p.hero, key, p.skin), 126);
         this.hero.setPosition(p.x, p.y + (p.grounded && key === 'idle' ? Math.sin(t * 3) * 1.2 : 0)).setFlipX(p.dir < 0).setAlpha(p.invincible > 0 ? (Math.floor(t * 17) % 2 ? .45 : 1) : 1).setAngle(p.dash > 0 ? p.dir * 8 : 0);
         this.shadow.setPosition(p.x, Math.min(615, p.y + 8)).setAlpha(p.grounded ? .5 : .15).setScale(p.grounded ? 1 : .65);
         this.fx.clear();
         if (p.dash > 0 && !this.paused && Math.floor(t * 60) % 2 === 0) {
-            const ghost = this.add.image(p.x - p.dir * 24, p.y, this.heroKey(p.hero, key)).setOrigin(.5, 1).setFlipX(p.dir < 0).setDisplaySize(this.hero.displayWidth, 126).setTint(0x83f4e1).setAlpha(.35).setDepth(3);
+            const ghost = this.add.image(p.x - p.dir * 24, p.y, this.heroKey(p.hero, key, p.skin)).setOrigin(.5, 1).setFlipX(p.dir < 0).setDisplaySize(this.hero.displayWidth, 126).setTint(0x83f4e1).setAlpha(.35).setDepth(3);
             this.tweens.add({ targets: ghost, alpha: 0, duration: 200, onComplete: () => ghost.destroy() });
         }
         for (const [id, a] of this.actors)
@@ -436,7 +455,7 @@ export class ForestScene extends Phaser.Scene {
                     a.setVisible(false);
                 continue;
             }
-            a.setVisible(true).setPosition(e.x, e.y + (e.kind === 'bat' ? Math.sin(t * 13 + e.id) * 5 : e.kind === 'goblin' ? Math.sin(t * 5 + e.id) * 1 : 0)).setFlipX(e.dir > 0).setTint(e.flash > 0 ? 0xffe5b3 : e.windup > 0 ? 0xffb580 : this.world.chapter === 3 ? 0xb3e6ff : this.world.chapter === 2 ? 0xe5a1a0 : 0xffffff);
+            a.setVisible(true).setPosition(e.x, e.y + (e.kind === 'bat' ? Math.sin(t * 13 + e.id) * 5 : e.kind === 'goblin' ? Math.sin(t * 5 + e.id) * 1 : 0)).setFlipX(e.dir > 0).setAngle(e.attackAnim > 0 ? -e.dir * Math.sin(e.attackAnim / .3 * Math.PI) * 14 : e.windup > 0 ? e.dir * 7 : 0).setTint(e.flash > 0 ? 0xffe5b3 : e.windup > 0 ? 0xffb580 : this.world.chapter === 3 ? 0xb3e6ff : this.world.chapter === 2 ? 0xe5a1a0 : 0xffffff);
             if (e.kind === 'bat')
                 a.setScale(a.scaleX, Math.abs(a.scaleX) * (1 + Math.sin(t * 16) * .10));
             if (e.active && e.kind !== 'boss' && e.hp < e.maxHp) {
@@ -563,6 +582,7 @@ export class ForestScene extends Phaser.Scene {
         $('mp-create').onclick = () => connect(false);
         $('mp-join-form').onsubmit = e => { e.preventDefault(); connect(true); };
         $('mp-back').onclick = () => void this.goToMenu();
+        $('mp-visibility').onchange = () => this.net.command('visibility', $('mp-visibility').checked);
         $('mp-key').onchange = () => this.net.command('key', $('mp-key').checked);
         $('mp-ready').onclick = () => { const own = this.net.lobby?.members.find((m) => m.id === this.net.id); this.net.command('ready', !own?.ready); };
         $('mp-start').onclick = () => { audioUnlock(); this.net.command('start'); };
@@ -741,6 +761,13 @@ export class ForestScene extends Phaser.Scene {
                 const state = document.createElement('span');
                 state.textContent = !member.connected ? 'Reconectando…' : member.ready ? 'Pronto' : 'Preparando';
                 card.append(name, state);
+                if (s.host === this.net.id && member.id !== this.net.id && s.stage === 'lobby') {
+                    const kick = document.createElement('button');
+                    kick.className = 'mini-button';
+                    kick.textContent = 'Remover';
+                    kick.onclick = () => this.net.command('kick', member.id);
+                    card.append(kick);
+                }
             }
             else {
                 card.classList.add('empty');
@@ -755,12 +782,15 @@ export class ForestScene extends Phaser.Scene {
                 this.updateCampaignButtons();
         }
         const own = s.members.find((m) => m.id === this.net.id), host = s.host === this.net.id;
+        show('mp-visibility-box', s.mode === 'coop');
+        $('mp-visibility').checked = !!s.visible;
+        $('mp-visibility').disabled = !host || s.stage !== 'lobby';
         show('mp-key-box', s.mode !== 'pvp');
         const keyInput = $('mp-key');
         keyInput.checked = !!s.useKey;
         keyInput.disabled = !host || s.stage !== 'lobby' || s.key?.status !== 'available';
         $('mp-key-label').textContent = s.key?.status === 'available' ? `Ativar chave +${s.key.level} do anfitrião neste capítulo` : 'Modo normal · anfitrião sem chave disponível neste capítulo';
-        $('mp-key-info').textContent = s.useKey ? 'A chave é consumida ao iniciar. Tempo esgotado, derrota ou abandono quebram a chave.' : 'Conclua no modo normal para obter a chave +2 deste herói e capítulo, uma vez por semana.';
+        $('mp-key-info').textContent = s.useKey ? 'A chave é consumida ao iniciar. O tempo continua durante a pausa. Tempo esgotado ou abandono quebram apenas a chave do líder.' : 'Conclua no modo normal para obter a chave +2 deste herói e capítulo, Você pode obter outra +2 se perder a anterior.';
         document.querySelectorAll('.room-code-label,.room-code-row,#mp-copy-link').forEach(el => el.classList.toggle('hidden', s.mode === 'solo'));
         $('mp-ready').textContent = own?.ready ? 'PRONTO ✓ · CANCELAR' : 'ESTOU PRONTO';
         $('mp-ready').disabled = s.stage !== 'lobby';
@@ -841,10 +871,10 @@ export class ForestScene extends Phaser.Scene {
                 this.remoteActors.set(p.id, a);
             }
             const key = p.attack > 0 ? 'slash' : !p.grounded || Math.abs(p.vx) > 45 ? (Math.floor(t * 10) % 2 ? 'run1' : 'run2') : 'idle';
-            this.sizeActor(a.image, this.heroKey(p.hero, key), 126);
+            this.sizeActor(a.image, this.heroKey(p.hero, key, p.skin), 126);
             const distance = Math.hypot(a.image.x - p.x, a.image.y - p.y);
             a.image.setPosition(distance > 220 ? p.x : Phaser.Math.Linear(a.image.x, p.x, .38), distance > 220 ? p.y : Phaser.Math.Linear(a.image.y, p.y, .38)).setFlipX(p.dir < 0).setTint(p.hp > 0 ? 0xbed9ff : 0x718f9a).setAlpha(p.invincible > 0 ? .65 : 1).setAngle(p.hp > 0 ? 0 : -75);
-            a.label.setPosition(a.image.x, a.image.y - (p.hp > 0 ? 145 : 70)).setText(p.hp > 0 ? p.name : this.world.mode === 'pvp' ? `${p.name} · derrotado` : `${p.name} · reanimar ${Math.round(p.revive / 2.5 * 100)}%`);
+            a.label.setPosition(a.image.x, a.image.y - (p.hp > 0 ? 145 : 70)).setText(p.hp > 0 ? p.name + (p.title ? ' · ' + p.title : '') : this.world.mode === 'pvp' ? `${p.name} · derrotado` : `${p.name} · renasce em ${Math.max(0, Math.ceil(3 - p.revive))}s`);
         }
         const peers = this.world.players.filter(p => p.id !== this.net.id);
         show('peer-hud', peers.length > 0);
@@ -1026,18 +1056,49 @@ export class ForestScene extends Phaser.Scene {
         show('modal-menu', true);
         $('modal-menu').textContent = host && this.net.connected ? 'Encerrar sala e voltar ao menu' : 'Menu principal';
     }
-    updateHUD() { const p = this.world.player; this.updateHeroHUD(); const pvp = this.world.mode === 'pvp'; show('duel-hud', pvp && this.session === 'online'); $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores); $('duel-round').textContent = `DUELO ${this.activeRound}`; $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SUA EQUIPE'; $('level-progress').parentElement.classList.toggle('hidden', pvp); $('hero-name').textContent = this.session === 'online' ? p.name : HEROES[p.hero].name.toUpperCase(); $('health-fill').style.width = `${p.hp / p.maxHp * 100}%`; $('health-value').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`; $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`; const labels = this.world.level.zones.map((name, i) => `0${i + 1} — ${name}`); $('area-label').textContent = labels[this.world.zone]; $('objective-text').textContent = this.world.status === 'won' ? 'Capítulo concluído' : this.world.bossActive ? `Derrote ${this.world.level.boss}` : this.net.active && p.x > 3780 ? 'Aguarde sua equipe no santuário' : this.world.chapter === 3 ? 'Atravesse a cidadela →' : this.world.chapter === 2 ? 'Atravesse a caldeira →' : 'Atravesse a floresta →'; if (pvp) {
-        $('area-label').textContent = 'ARENA · ' + this.world.level.name.toUpperCase();
-        $('objective-text').textContent = this.world.status === 'won' ? 'Duelo concluído' : 'Derrote seu adversário';
-    } for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {
-        const el = $('cooldown' + i);
-        el.style.display = p[key] > 0 ? 'flex' : 'none';
-        el.textContent = Math.ceil(p[key]).toString();
-        $('skill' + i).setAttribute('aria-label', `${i === 1 ? HEROES[p.hero].skill1 : HEROES[p.hero].skill2}${p[key] > 0 ? `, recarrega em ${Math.ceil(p[key])} segundos` : `, disponível`}`);
-    } const boss = this.world.enemies.find(e => e.kind === 'boss'); if (boss) {
-        $('boss-fill').style.width = `${boss.hp / boss.maxHp * 100}%`;
-        $('boss-value').textContent = `${boss.hp} / ${boss.maxHp}`;
-    } show('boss-hud', this.world.bossActive && this.world.status === 'playing'); $('combo').innerHTML = this.world.hitCount >= 2 ? `${this.world.hitCount}<small>ACERTOS</small>` : ''; }
+    updateHUD() {
+        const p = this.world.player;
+        show('combat-xp', this.world.mode !== 'pvp');
+        $('combat-xp-bar').max = p.nextXp || 1;
+        $('combat-xp-bar').value = p.nextXp ? p.xp : 1;
+        $('combat-xp-label').textContent = `Nível ${p.level ?? 1} · ${p.xp ?? 0} / ${p.nextXp ?? 100} XP`;
+        const cooldown = Math.max(0, Math.ceil(((p.potionUntil ?? 0) - Date.now()) / 1000));
+        $('combat-consumables').innerHTML = Array.from({ length: 5 }, (_, i) => { const slot = i + 1, count = p.potions?.find(q => q.slot === slot)?.count ?? 0; return `<button data-potion="${slot}" ${!count || cooldown || p.hp <= 0 || !this.canControl() ? 'disabled' : ''} title="Poção de cura menor · atalho ${slot}"><kbd>${slot}</kbd><span>${count ? '⚗' : '—'}</span><small>${cooldown && count ? cooldown + 's' : count ? '×' + count : 'Vazio'}</small></button>`; }).join('');
+        $('combat-consumables').querySelectorAll('[data-potion]').forEach(b => b.onclick = () => this.net.command('potion', Number(b.dataset.potion)));
+        this.updateHeroHUD();
+        const pvp = this.world.mode === 'pvp';
+        show('duel-hud', pvp && this.session === 'online');
+        $('duel-score').textContent = this.scoreText(this.net.snapshot?.scores);
+        $('duel-round').textContent = `DUELO ${this.activeRound}`;
+        $('peer-role').textContent = pvp ? 'SEU ADVERSÁRIO' : 'SUA EQUIPE';
+        $('level-progress').parentElement.classList.toggle('hidden', pvp);
+        $('hero-name').textContent = HEROES[p.hero].name + (p.title ? ', ' + p.title.toLowerCase() : '');
+        $('health-fill').style.width = `${p.hp / p.maxHp * 100}%`;
+        $('health-value').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
+        $('level-progress').style.width = `${Math.min(100, p.x / 4500 * 100)}%`;
+        const labels = this.world.level.zones.map((name, i) => `0${i + 1} — ${name}`);
+        $('area-label').textContent = labels[this.world.zone];
+        $('objective-text').textContent = this.world.status === 'won' ? 'Capítulo concluído' : this.world.bossActive ? `Derrote ${this.world.level.boss}` : this.net.active && p.x > 3780 ? 'Aguarde sua equipe no santuário' : this.world.chapter === 3 ? 'Atravesse a cidadela →' : this.world.chapter === 2 ? 'Atravesse a caldeira →' : 'Atravesse a floresta →';
+        if (pvp) {
+            $('area-label').textContent = 'ARENA · ' + this.world.level.name.toUpperCase();
+            $('objective-text').textContent = this.world.status === 'won' ? 'Duelo concluído' : 'Derrote seu adversário';
+        }
+        for (const [i, key] of [[1, 'skill1'], [2, 'skill2']]) {
+            const el = $('cooldown' + i);
+            el.style.display = p[key] > 0 ? 'flex' : 'none';
+            el.textContent = Math.ceil(p[key]).toString();
+            $('skill' + i).setAttribute('aria-label', `${i === 1 ? HEROES[p.hero].skill1 : HEROES[p.hero].skill2}${p[key] > 0 ? `, recarrega em ${Math.ceil(p[key])} segundos` : `, disponível`}`);
+        }
+        const boss = this.world.enemies.find(e => e.kind === 'boss');
+        if (boss) {
+            $('boss-fill').style.width = `${boss.hp / boss.maxHp * 100}%`;
+            $('boss-value').textContent = `${boss.hp} / ${boss.maxHp}`;
+        }
+        if (p.hp <= 0 && !pvp)
+            $('objective-text').textContent = `Renasce em ${Math.max(0, Math.ceil(3 - p.revive))}s · vidas ilimitadas`;
+        show('boss-hud', this.world.bossActive && this.world.status === 'playing');
+        $('combo').innerHTML = this.world.hitCount >= 2 ? `${this.world.hitCount}<small>ACERTOS</small>` : '';
+    }
 }
 try {
     new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 1280, height: 720, backgroundColor: '#0b2631', antialias: true, render: { roundPixels: false }, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ForestScene, input: { activePointers: 4 }, fps: { target: 60, forceSetTimeOut: false }, audio: { noAudio: true } });

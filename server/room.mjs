@@ -2,10 +2,12 @@ import {Room, ServerError} from '@colyseus/core';
 import {randomInt,randomUUID} from 'node:crypto';
 import {World, createPlayer, HEROES} from '../dist/engine.js';
 
-import {lootPool,attributes,ITEMS} from './catalog.mjs';
+import {lootPool,attributes,ITEMS,progression,heroTitle,itemDefinition} from './catalog.mjs';
 import {mythicRules,mythicUpgrade} from './mythic.mjs';
 import {weekStart} from './catalog.mjs';
 const codes=new Set();
+export const publicRooms=new Map();
+export function availableRooms(chapter,unlocked=1){return [...publicRooms.values()].filter(r=>r.visible&&r.mode==='coop'&&r.stage==='lobby'&&r.members.size<r.maxClients&&r.chapter<=unlocked&&(!chapter||r.chapter===chapter)).map(r=>{const l=r.lobby();return {code:r.roomId,chapter:r.chapter,host:r.members.get(r.host)?.name??'Aventureiro',players:r.members.size,maxPlayers:r.maxClients,mythicLevel:l.useKey&&l.key?.status==='available'?l.key.level:0};});}
 const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_ROOMS=32;
 export function cleanName(value){
@@ -26,7 +28,7 @@ export class ForestRoom extends Room {
   mode='coop';chapter=1;scores=new Map();result=null;scoredRound=0;closing=false;
   participants=[];rewardCache=new Map();settlement=null;xpPending=false;xpSavedCount=0;finishedAt=0;
   roomCreatedAt=randomUUID();progress='idle';progressRound=0;progressIds=[];progressRetries=0;accounts=null;
-  creatorAccountId='';useKey=false;mythic=null;preparing=false;
+  visible=false;creatorAccountId='';useKey=false;mythic=null;preparing=false;
   members=new Map();world=new World();host='';stage='lobby';round=0;tick=0;accumulator=0;countdownAt=0;
   async onCreate(options={}){
     if(options.mode!==undefined&&!['solo','coop','pvp'].includes(options.mode))throw new ServerError(400,'Modo inválido.');
@@ -35,9 +37,12 @@ export class ForestRoom extends Room {
     let creator;try{creator=await this.accounts.authenticate(options);}catch(e){throw new ServerError(401,e.message);}this.creatorAccountId=creator.id;const hero=creator.heroes.find(h=>h.id===(options.hero??'kael'));if((hero?.unlockedChapter??creator.unlockedChapter??1)<this.chapter)throw new ServerError(403,'Este herói precisa liberar o capítulo para criar a sala.');
     if(codes.size>=MAX_ROOMS)throw new ServerError(503,'Todas as salas estão ocupadas. Tente novamente em instantes.');
     let code;do{code=Array.from({length:6},()=>alphabet[randomInt(alphabet.length)]).join('');}while(codes.has(code));
-    this.roomId=code;codes.add(code);await this.setPrivate(true);
+    this.roomId=code;codes.add(code);publicRooms.set(code,this);await this.setPrivate(true);
     this.world.players=[];
     this.onMessage('input',(client,packet)=>{const m=this.members.get(client.sessionId);if(!m)return;const value=validateInput(packet,m.lastSeq);if(!value)return;m.lastSeq=value.seq;m.lastSeen=Date.now();if(this.stage!=='playing'||this.isPaused()){m.ack=m.lastSeq;m.queue=[];m.input={};return;}if(m.queue.length>=6){m.ack=m.queue.shift().seq;}m.queue.push(value);});
+    this.onMessage('visibility',(client,value)=>{if(client.sessionId===this.host&&this.stage==='lobby'&&this.mode==='coop'&&typeof value==='boolean'){this.visible=value;this.sendLobby();}});
+    this.onMessage('kick',(client,id)=>{if(client.sessionId!==this.host||this.stage!=='lobby'||id===this.host)return;const target=this.clients.find(c=>c.sessionId===id);if(target){target.send('notice','O líder removeu você da sala.');target.leave(4000);}});
+    this.onMessage('potion',(client,slot)=>void this.usePotion(client,slot));
     this.onMessage('ready',(client,value)=>{const m=this.members.get(client.sessionId);if(m&&this.stage==='lobby'&&typeof value==='boolean'){m.ready=value;this.sendLobby();}});
     this.onMessage('start',(client)=>{if(client.sessionId!==this.host||this.stage!=='lobby')return;if(this.members.size<(this.mode==='solo'||(this.mode==='coop'&&this.round>0)?1:2)||[...this.members.values()].some(m=>!m.ready||!m.connected)){client.send('notice','Todos na sala precisam estar prontos (PvE: mínimo de dois).');return;}void this.prepareRound(client);});
     this.onMessage('key',(client,value)=>{if(client.sessionId===this.host&&this.stage==='lobby'&&typeof value==='boolean'&&this.mode!=='pvp'){this.useKey=value;for(const m of this.members.values())m.ready=false;this.sendLobby();}});
@@ -54,7 +59,7 @@ export class ForestRoom extends Room {
     this.onMessage('ping',(client,value)=>{if(typeof value==='number'&&Number.isFinite(value))client.send('pong',value);});
     this.setSimulationInterval(delta=>this.advance(delta),1000/60);
     this.clock.setTimeout(()=>{if(this.stage==='lobby')this.disconnect();},10*60*1000);
-    if(this.mode!=='pvp')this.clock.setTimeout(()=>this.disconnect(),2*60*60*1000);
+
   }
   async onAuth(_client,options){
     const hero=options?.hero??'kael';if(!Object.hasOwn(HEROES,hero))throw new ServerError(400,'Herói inválido.');
@@ -63,15 +68,16 @@ export class ForestRoom extends Room {
     if(unlocked<this.chapter&&(this.mode!=='pvp'||account.id===this.creatorAccountId))throw new ServerError(403,'Conclua o capítulo anterior para entrar neste mapa.');
     if(!account.heroes.some(h=>h.id===hero))throw new ServerError(403,'Você ainda não possui este herói.');
     if([...this.members.values()].some(m=>m.accountId===account.id))throw new ServerError(409,'Sua conta já está nesta sala.');
-    return {name:account.name,hero,accountId:account.id,keys:account.heroes.find(h=>h.id===hero)?.keys??[],unlockedChapter:unlocked,stats:account.heroes.find(h=>h.id===hero)?.attributes??attributes(hero,0)};
+    const h=account.heroes.find(h=>h.id===hero);const potions=(account.hotbar??[]).filter(b=>b.hero===hero).map(b=>({slot:b.slot,count:(h.inventory??[]).filter(i=>i.catalog_id===b.catalog_id&&!i.listed&&!i.equipped).length}));
+    return {skin:h.skin??'default',title:heroTitle(hero,h.title),xp:h.xp??0,nextXp:h.nextXp??100,level:h.level??1,potions,name:account.name,hero,accountId:account.id,keys:account.heroes.find(h=>h.id===hero)?.keys??[],unlockedChapter:unlocked,stats:account.heroes.find(h=>h.id===hero)?.attributes??attributes(hero,0)};
   }
   onJoin(client,_options,auth){
     if(this.stage!=='lobby')throw new ServerError(409,'Esta partida já começou.');
     if(!this.host)this.host=client.sessionId;
     const index=this.members.size;
     if([...this.members.values()].some(m=>m.accountId===auth.accountId))throw new ServerError(409,'Sua conta já está nesta sala.');
-    this.members.set(client.sessionId,{id:client.sessionId,name:auth.name,hero:auth.hero,accountId:auth.accountId,unlockedChapter:auth.unlockedChapter,stats:auth.stats,keys:auth.keys??[],ready:false,connected:true,paused:false,index,lastSeq:0,ack:0,queue:[],input:{},lastSeen:Date.now()});
-    this.scores.set(client.sessionId,{id:client.sessionId,name:auth.name,wins:0});
+    this.members.set(client.sessionId,{id:client.sessionId,skin:auth.skin??'default',title:auth.title??'',xp:auth.xp??0,nextXp:auth.nextXp??100,level:auth.level??1,potions:auth.potions??[],name:auth.name,hero:auth.hero,accountId:auth.accountId,unlockedChapter:auth.unlockedChapter,stats:auth.stats,keys:auth.keys??[],ready:false,connected:true,paused:false,index,lastSeq:0,ack:0,queue:[],input:{},lastSeen:Date.now()});
+    this.scores.set(client.sessionId,{id:client.sessionId,skin:auth.skin??'default',title:auth.title??'',xp:auth.xp??0,nextXp:auth.nextXp??100,level:auth.level??1,potions:auth.potions??[],name:auth.name,wins:0});
     this.sendLobby();
   }
   onDrop(client){this.clearInputs();const m=this.members.get(client.sessionId);if(m){m.connected=false;m.input={};m.queue=[];m.ack=m.lastSeq;}this.allowReconnection(client,25);this.sendLobby();}
@@ -86,7 +92,7 @@ export class ForestRoom extends Room {
     if(this.mode!=='pvp'&&this.stage==='playing'&&this.world.status==='playing'&&this.members.size===1){this.world.status='dead';this.recordResult('left');}
     this.members.delete(client.sessionId);if(this.round===0)this.scores.delete(client.sessionId);this.world.players=this.world.players.filter(p=>p.id!==client.sessionId);
     if(this.host===client.sessionId)this.host=this.members.keys().next().value??'';
-    if(this.world.players.length){this.world.player=this.world.players[0];if(this.world.status==='playing'&&this.world.players.every(p=>p.hp<=0)){this.world.status='dead';this.world.emit('dead');}}
+    if(this.world.players.length)this.world.player=this.world.players[0];
     if(this.stage==='countdown'){if(this.mythic){this.world.status='dead';this.stage='playing';this.recordResult('left');}else this.returnLobby();}
     if(this.mode==='coop'&&this.members.size&&this.stage==='playing'&&this.world.status==='playing'){for(const m of this.members.values())m.paused=true;this.clearInputs();}
     this.sendLobby();
@@ -94,10 +100,10 @@ export class ForestRoom extends Room {
     if(this.members.size&&this.stage==='playing'){this.broadcast('snapshot',this.snapshot());this.broadcast('notice',this.mode==='pvp'?'Seu adversário saiu. O placar permanece até encerrar a sala.':'Seu companheiro saiu da sala.');}
   }
   async getInspectData(){return {roomId:this.roomId,maxClients:this.maxClients,metadata:{mode:this.mode,chapter:this.chapter,progress:this.progress},locked:this.locked,clients:this.clients.map(c=>({sessionId:c.sessionId,elapsedTime:this.clock.elapsedTime-c._joinedAt})),state:this.snapshot(),stateSize:Buffer.byteLength(JSON.stringify(this.snapshot()))};}
-  onDispose(){codes.delete(this.roomId);if(this.mythic&&!this.settlement)void this.accounts.store.call('key-resolve',{round:this.mythic.round,success:false}).catch(()=>{});}
+  onDispose(){codes.delete(this.roomId);publicRooms.delete(this.roomId);if(this.mythic&&!this.settlement)void this.accounts.store.call('key-resolve',{round:this.mythic.round,success:false}).catch(()=>{});}
   clearInputs(){for(const m of this.members.values()){m.input={};m.queue=[];m.ack=m.lastSeq;}}
   isPaused(){return [...this.members.values()].some(m=>m.paused||!m.connected);}
-  lobby(){const host=this.members.get(this.host);const key=host?.keys?.find(k=>k.chapter===this.chapter&&k.week===weekStart());return {useKey:this.useKey,key:key??null,mythic:this.mythicView(),preparing:this.preparing,progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,code:this.roomId,host:this.host,stage:this.stage,round:this.round,countdown:this.stage==='countdown'?Math.max(0,Math.ceil((this.countdownAt-Date.now())/1000)):0,paused:this.isPaused(),members:[...this.members.values()].map(({id,name,hero,ready,connected,paused,index})=>({id,name,hero,ready,connected,paused,index}))};}
+  lobby(){const host=this.members.get(this.host);const key=host?.keys?.find(k=>k.chapter===this.chapter&&k.week===weekStart());return {visible:this.visible,useKey:this.useKey,key:key??null,mythic:this.mythicView(),preparing:this.preparing,progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,code:this.roomId,host:this.host,stage:this.stage,round:this.round,countdown:this.stage==='countdown'?Math.max(0,Math.ceil((this.countdownAt-Date.now())/1000)):0,paused:this.isPaused(),members:[...this.members.values()].map(({id,name,hero,ready,connected,paused,index})=>({id,name,hero,ready,connected,paused,index}))};}
   sendLobby(){this.broadcast('lobby',this.lobby());}
   returnLobby(chapter=this.chapter){this.chapter=chapter;this.stage='lobby';this.world.status='ready';this.mythic=null;this.useKey=false;this.unlock();for(const m of this.members.values())m.ready=false;this.sendLobby();}
   async prepareRound(client){
@@ -112,19 +118,24 @@ export class ForestRoom extends Room {
   mythicView(){if(!this.mythic)return null;const m=this.mythic,elapsed=m.startedAt?Math.max(0,(this.finishedAt||Date.now())-m.startedAt):0;const kills=this.world.enemies.filter(e=>e.kind!=='boss'&&e.dead).length;return {...m,remainingMs:Math.max(0,m.limitMs-elapsed),killed:kills,upgrade:mythicUpgrade(elapsed,m.limitMs,kills,m.total),elapsedMs:elapsed};}
   beginRound(chapter=this.chapter){
     this.rewardCache.clear();this.settlement=null;this.xpSavedCount=0;this.finishedAt=0;this.participants=[...this.members.values()].map(m=>({id:m.accountId,sessionId:m.id,hero:m.hero,name:m.name,loot:lootPool(chapter)[randomInt(lootPool(chapter).length)].id}));
-    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);Object.assign(p,m.stats??attributes(m.hero,0));p.hp=p.maxHp;if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
+    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);Object.assign(p,m.stats??attributes(m.hero,0),{skin:m.skin,title:m.title,xp:m.xp,nextXp:m.nextXp,level:m.level,potions:m.potions,potionUntil:m.potionUntil??0});p.hp=p.maxHp;if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
     this.world.player=this.world.players[0];
     if(this.mode==='pvp')this.world.enemies=[];
     for(const e of this.world.enemies){e.hp=e.maxHp=Math.round(e.maxHp*(this.mythic?.hp??1)*(1+(this.world.players.length-1)*(e.kind==='boss'?.65:.35)));}
     this.world.enemyDamageScale=this.mythic?.damage??1;if(this.mythic)this.mythic.total=this.world.enemies.filter(e=>e.kind!=='boss').length;
     this.stage='countdown';this.countdownAt=Date.now()+3000;this.sendLobby();this.broadcast('snapshot',this.snapshot());
   }
-  deadEnemies(){return this.world.enemies.filter(e=>e.dead).map(e=>({id:e.id,kind:e.kind}));}
+  deadEnemies(){return this.world.enemies.filter(e=>e.dead).map(e=>({id:e.id,kind:e.species??e.kind}));}
   payload(reason='knockout'){return {mythic:this.mythicView(),round:`${this.roomId}:${this.roomCreatedAt}:${this.round}`,chapter:this.chapter,mode:this.mode,duration:this.mythic?this.mythicView().elapsedMs/1000:this.world.elapsed,outcome:this.world.status,finishedAt:this.finishedAt||Date.now(),reason,winner:this.members.get(this.world.winnerId)?.accountId,players:this.participants.map(p=>({...p})),kills:this.deadEnemies()};}
   async flushXp(){
     if(!this.accounts?.store||this.mode==='pvp'||this.xpPending)return;
     const payload=this.payload(),count=payload.kills.length,round=this.round;if(count===this.xpSavedCount)return;
-    this.xpPending=true;try{await this.accounts.store.call('rewards',payload);if(this.round===round)this.xpSavedCount=count;}catch(e){console.error('XP persistence pending',e.message);}finally{this.xpPending=false;}
+    this.xpPending=true;try{const result=await this.accounts.store.call('rewards',payload);if(this.round===round){this.xpSavedCount=count;this.broadcast('hero-progress',{});for(const m of this.members.values()){const h=result.heroes?.find(h=>h.account_id===m.accountId&&h.hero===m.hero);if(h){const xp=progression(h.xp);Object.assign(m,{xp:xp.xp,nextXp:xp.nextXp,level:xp.level});const p=this.world.players.find(p=>p.id===m.id);if(p)Object.assign(p,{xp:xp.xp,nextXp:xp.nextXp,level:xp.level});}}}}catch(e){console.error('XP persistence pending',e.message);}finally{this.xpPending=false;}
+  }
+  async usePotion(client,slot){
+    const m=this.members.get(client.sessionId),p=this.world.players.find(p=>p.id===client.sessionId),world=this.world;
+    if(!m||!p||m.potionPending||!Number.isInteger(slot)||slot<1||slot>5||this.stage!=='playing'||world.status!=='playing'||this.isPaused()||p.hp<=0||p.hp>=p.maxHp||(m.potionUntil??0)>Date.now())return;
+    m.potionPending=true;try{const result=await this.accounts.store.call('potion-use',{id:m.accountId,hero:m.hero,slot,useId:randomUUID()});if(result.consumed){m.potionUntil=result.cooldownUntil;if(this.world===world){p.potionUntil=result.cooldownUntil;for(const entry of p.potions)entry.count=Math.max(0,entry.count-1);if(p.hp>0&&world.status==='playing'){const healed=Math.min(p.maxHp-p.hp,Math.round(p.maxHp*result.healFraction));p.hp+=healed;world.events.push({type:'heal',playerId:p.id,x:p.x,y:p.y-90,value:healed});}}}else client.send('notice','Poção indisponível ou ainda em recarga.');}catch{client.send('notice','Não foi possível usar a poção. Tente novamente.');}finally{m.potionPending=false;}
   }
   recordResult(reason='knockout'){
     if(!['won','dead'].includes(this.world.status)||this.progressRound===this.round||this.round===0)return;
@@ -145,9 +156,9 @@ export class ForestRoom extends Room {
       if(this.round!==round)return;
       for(const m of this.members.values()){
         if(this.mode!=='pvp'&&payload.outcome==='won')m.unlockedChapter=Math.max(m.unlockedChapter,Math.min(3,chapter+1));
-        const reward=result.rewards.find(r=>r.account_id===m.accountId);if(reward){reward.item=ITEMS[reward.catalog_id]??null;this.rewardCache.set(m.id,reward);this.clients.find(c=>c.sessionId===m.id)?.send('rewards',reward);}
+        const reward=result.rewards.find(r=>r.account_id===m.accountId);if(reward){reward.item=itemDefinition(reward)??null;this.rewardCache.set(m.id,reward);this.clients.find(c=>c.sessionId===m.id)?.send('rewards',reward);}
         // Refresh equipment and levels before the next chapter/rematch.
-        if(this.accounts.getProfile){const profile=await this.accounts.getProfile(m.accountId);const hero=profile?.heroes.find(h=>h.id===m.hero);m.stats=hero?.attributes??m.stats;m.keys=hero?.keys??[];m.unlockedChapter=hero?.unlockedChapter??m.unlockedChapter;}
+        if(this.accounts.getProfile){const profile=await this.accounts.getProfile(m.accountId);const hero=profile?.heroes.find(h=>h.id===m.hero);m.stats=hero?.attributes??m.stats;m.keys=hero?.keys??[];m.unlockedChapter=hero?.unlockedChapter??m.unlockedChapter;if(hero){m.xp=hero.xp;m.nextXp=hero.nextXp;m.level=hero.level;m.potions=(profile.hotbar??[]).filter(b=>b.hero===m.hero).map(b=>({slot:b.slot,count:hero.inventory.filter(i=>i.catalog_id===b.catalog_id&&!i.listed).length}));}}
       }
       this.progress='saved';this.broadcast('progress-saved',{chapter});
     }catch(e){console.error('Progress save failed',e.message);this.progress='error';if(this.progressRetries++<2)this.clock.setTimeout(()=>void this.saveProgress(),2000);}

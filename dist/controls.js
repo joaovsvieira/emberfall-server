@@ -3,9 +3,10 @@ const movement = new Set(['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight']);
 export function isEditing(target) { return !!target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])'); }
 // No global Phaser captures: menus and form fields keep native keyboard behavior.
 export class GameControls {
-    constructor(active, pause, keys, surface) {
+    constructor(active, pause, keys, surface, potion = () => { }) {
         this.active = active;
         this.pause = pause;
+        this.potion = potion;
         this.down = new Set();
         this.actions = [];
         this.mouse = false;
@@ -19,6 +20,12 @@ export class GameControls {
                     this.reset();
                     this.pause();
                 }
+                return;
+            }
+            if (/^Digit[1-5]$/.test(e.code)) {
+                e.preventDefault();
+                if (!e.repeat)
+                    this.potion(Number(e.code.slice(-1)));
                 return;
             }
             if (!bindings[e.code] && !movement.has(e.code))

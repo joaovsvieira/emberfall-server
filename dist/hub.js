@@ -1,3 +1,4 @@
+import { Adventure } from './adventure.js';
 import { Expansion } from './expansion.js';
 import { Features } from './features.js';
 import { HEROES, CHAPTERS } from './engine.js';
@@ -15,7 +16,7 @@ export class Hub {
         this.heroSave = Promise.resolve();
         this.chatTab = 'global';
         this.friendTab = 'list';
-        for (const tab of ['shop', 'heroes', 'map', 'history', 'market', 'ranking', 'clan', 'settings'])
+        for (const tab of ['shop', 'professions', 'heroes', 'achievements', 'history', 'map', 'market', 'ranking', 'clan', 'mail', 'settings'])
             $('tab-' + tab).onclick = () => this.setTab(tab);
         $('auth-switch').onclick = () => { this.authMode = this.authMode === 'login' ? 'register' : 'login'; this.renderAuth(); };
         $('auth-form').onsubmit = e => { e.preventDefault(); void this.submit(); };
@@ -33,6 +34,7 @@ export class Hub {
         $('hero-to-map').onclick = () => this.setTab('map');
         this.features = new Features(this);
         this.expansion = new Expansion(this);
+        this.adventure = new Adventure(this);
         document.addEventListener('click', e => { const target = e.target; if (!target.closest('#account-menu'))
             this.closeAccountMenu(); });
         this.setAuthChrome(true);
@@ -116,6 +118,7 @@ export class Hub {
         this.renderHeroes();
         this.renderMap();
         this.renderFooter();
+        this.adventure.accepted();
         if (this.scene.resultShown && this.scene.world.mode !== 'pvp')
             this.scene.renderLoot();
         if (this.scene.session === 'menu') {
@@ -131,10 +134,11 @@ export class Hub {
             }
         }
     }
-    setTab(tab) { this.tab = tab; this.closeWidgets(); for (const name of ['shop', 'heroes', 'map', 'history', 'market', 'ranking', 'clan', 'settings']) {
+    setTab(tab) { if (tab !== this.tab)
+        this.scene.menuSound(); this.tab = tab; this.closeWidgets(); for (const name of ['shop', 'professions', 'heroes', 'achievements', 'history', 'map', 'market', 'ranking', 'clan', 'mail', 'settings']) {
         visible('panel-' + name, name === tab);
         $('tab-' + name).setAttribute('aria-selected', String(name === tab));
-    } this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); this.features.open(tab); this.expansion.open(tab); }
+    } visible('panel-rooms', tab === 'rooms'); this.syncSound(); this.renderHeroes(); this.renderMap(); this.renderFooter(); this.features.open(tab); this.expansion.open(tab); this.adventure.open(tab); }
     syncSound() { $('settings-sound').textContent = $('sound').getAttribute('aria-label') === 'Desativar som' ? 'Som: ativado' : 'Som: desativado'; }
     heroSelected(hero) { if (!this.profile)
         return; this.profile.preferredHero = hero; this.renderMap(); this.renderHeroes(); this.renderFooter(); this.heroSave = this.heroSave.catch(() => { }).then(async () => { try {
@@ -150,11 +154,12 @@ export class Hub {
         $('roster-name').textContent = hero.name;
         $('roster-role').textContent = hero.role;
         $('roster-level').textContent = `NÍVEL ${owned?.level ?? 1}`;
-        $('roster-image').src = this.scene.textures.get(this.scene.heroKey(id, 'idle')).getSourceImage().toDataURL();
+        $('roster-image').src = this.scene.textures.get(this.scene.heroKey(id, 'idle', owned?.skin)).getSourceImage().toDataURL();
         $('roster-basic').textContent = hero.attack;
         $('roster-q').textContent = hero.skill1;
         $('roster-e').textContent = hero.skill2;
         this.features?.renderInventory();
+        this.adventure?.heroExtras();
         for (const h of Object.keys(HEROES))
             $('hero-' + h).disabled = !this.profile.heroes.some((owned) => owned.id === h);
     }
@@ -181,7 +186,7 @@ export class Hub {
     toggleAccountMenu() { const open = $('account-dropdown').classList.contains('hidden'); visible('account-dropdown', open); $('account-trigger').setAttribute('aria-expanded', String(open)); }
     closeAccountMenu() { visible('account-dropdown', false); $('account-trigger').setAttribute('aria-expanded', 'false'); }
     renderFooter() { if (!this.profile)
-        return; const progress = this.heroProgress(); const chapter = CHAPTERS[progress]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][progress]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle')).getSourceImage().toDataURL(); }
+        return; const progress = this.heroProgress(); const chapter = CHAPTERS[progress]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][progress]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle', this.profile.heroes.find((h) => h.id === hero)?.skin)).getSourceImage().toDataURL(); }
     toggleWidget(which) { const id = which === 'chat' ? 'chat-widget' : 'friends-widget'; const other = which === 'chat' ? 'friends-widget' : 'chat-widget'; const open = $(id).classList.contains('hidden'); visible(other, false); visible(id, open); $('footer-chat').setAttribute('aria-expanded', String(which === 'chat' && open)); $('footer-friends').setAttribute('aria-expanded', String(which === 'friends' && open)); }
     closeWidgets() { visible('chat-widget', false); visible('friends-widget', false); $('footer-chat').setAttribute('aria-expanded', 'false'); $('footer-friends').setAttribute('aria-expanded', 'false'); }
     heroProgress() { return this.profile?.heroes.find((h) => h.id === this.scene.selectedHero)?.unlockedChapter ?? 1; }

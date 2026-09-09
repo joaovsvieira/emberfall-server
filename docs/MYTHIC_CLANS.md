@@ -1,3 +1,5 @@
+> Atualização 0.10: consulte [ADVENTURE_SYSTEMS.md](ADVENTURE_SYSTEMS.md) para profissões, poções, correio, baús, conquistas, skins e as novas regras de chave/vidas. Esse documento prevalece sobre regras anteriores.
+
 # Emberfall 0.9 — regras e continuidade
 
 ## Capítulos por herói

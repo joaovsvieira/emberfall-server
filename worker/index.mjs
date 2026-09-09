@@ -7,7 +7,7 @@ export async function dataOperation(db,op,v){
  if(op==='find-user')return one('SELECT * FROM accounts WHERE username = ?',v.username);
  if(op==='account')return one('SELECT * FROM accounts WHERE id = ?',v.id);
  if(op==='register'){
-  await run('INSERT INTO accounts (id,username,display_name,password_hash,created_at) VALUES (?,?,?,?,?)',v.id,v.username,v.displayName,v.passwordHash,Date.now());
+  await db.batch([db.prepare('INSERT INTO accounts (id,username,display_name,password_hash,created_at) VALUES (?,?,?,?,?)').bind(v.id,v.username,v.displayName,v.passwordHash,Date.now()),db.prepare("INSERT INTO mail(id,account_id,subject,body,created_at) VALUES(?,?,'Bem-vindo a Emberfall!','Sua jornada começa nos Ecos da Floresta. Explore os capítulos, conheça seus heróis e encontre novos aliados. A chama te espera.',?)").bind('welcome:'+v.id,v.id,Date.now())]);
   return one('SELECT * FROM accounts WHERE id = ?',v.id);
  }
  if(op==='session-create'){

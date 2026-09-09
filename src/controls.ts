@@ -7,10 +7,11 @@ export function isEditing(target:any){return !!target?.closest?.('input,textarea
 // No global Phaser captures: menus and form fields keep native keyboard behavior.
 export class GameControls {
  down=new Set<string>();actions:Action[]=[];mouse=false;enabled=false;
- constructor(private active:()=>boolean,private pause:()=>void,keys:EventTarget,surface:EventTarget){
+ constructor(private active:()=>boolean,private pause:()=>void,keys:EventTarget,surface:EventTarget,private potion:(slot:number)=>void=()=>{}){
    keys.addEventListener('keydown',((e:KeyboardEvent)=>{
      if(!this.active()||isEditing(e.target))return;
      if(e.code==='Escape'){e.preventDefault();if(!e.repeat){this.reset();this.pause();}return;}
+     if(/^Digit[1-5]$/.test(e.code)){e.preventDefault();if(!e.repeat)this.potion(Number(e.code.slice(-1)));return;}
      if(!bindings[e.code]&&!movement.has(e.code))return;
      if(e.repeat&&!this.down.has(e.code))return;
      e.preventDefault();this.down.add(e.code);

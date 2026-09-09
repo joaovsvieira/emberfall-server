@@ -13,7 +13,7 @@ function run(round,players,extra={}){return {round,players,mode:players.length>1
 test('rewards are personal, retry-safe, per hero and atomic; incompatible gear remains in original inventory',async t=>{
  const s=setup(t);await user(s,'alice');await user(s,'bob');const payload=run('round1',[player('alice','kael','lyra_head_1'),player('bob')]);
  await s.call('rewards',payload);await s.call('settle',payload);await s.call('settle',payload);await s.call('rewards',payload);
- let a=await s.call('game-profile',{id:'alice'});assert.equal(a.gold,80);assert.equal(a.heroes[0].totalXp,170);assert.equal(a.heroes[1].totalXp,0);assert.equal(a.heroes[0].inventory.length,1);assert.equal(a.heroes[1].inventory.length,0);
+ let a=await s.call('game-profile',{id:'alice'});assert.equal(a.gold,80);assert.equal(a.heroes[0].totalXp,170);assert.equal(a.heroes[1].totalXp,0);assert.equal(a.heroes[0].inventory.filter(i=>i.definition.kind==='equipment').length,1);assert.equal(a.heroes[1].inventory.length,0);
  const item=a.heroes[0].inventory[0];await assert.rejects(()=>s.call('equip',{id:'alice',hero:'kael',item:item.id,equip:true}),/classe/);await assert.rejects(()=>s.call('equip',{id:'alice',hero:'lyra',item:item.id,equip:true}),/encontrado/);
  const b=await s.call('game-profile',{id:'bob'});assert.equal(b.gold,80);assert.notEqual(item.id,b.heroes[0].inventory[0].id);
  const invalid=run('invalid',[player('alice'),player('bob','kael','missing')]);await assert.rejects(()=>s.call('settle',invalid));assert.equal((await s.call('game-profile',{id:'alice'})).gold,80);assert.equal(s.sqlite.prepare('SELECT COUNT(*) AS n FROM matches').get().n,1);
@@ -27,11 +27,12 @@ test('market settlement prevents double sale, preserves gold and binds purchased
  await s.call('equip',{id:'alice',hero:'kael',item:item.id,equip:false});await s.call('market-sell',{id:'alice',item:item.id,price:50});await assert.rejects(()=>s.call('equip',{id:'alice',hero:'kael',item:item.id,equip:true}),/venda/);
  const listing=(await s.call('market-list',{id:'bob',slot:'head',q:'Floresta'})).listings[0];assert.ok(listing);await assert.rejects(()=>s.call('market-buy',{id:'alice',listing:listing.id,hero:'kael'}));
  const purchases=await Promise.allSettled(['bob','carol'].map(id=>s.call('market-buy',{id,listing:listing.id,hero:'lyra'})));assert.equal(purchases.filter(p=>p.status==='fulfilled').length,1);
- assert.equal(s.sqlite.prepare('SELECT SUM(gold) AS n FROM accounts').get().n,240);
+ assert.equal(s.sqlite.prepare('SELECT (SELECT SUM(gold) FROM accounts)+(SELECT COALESCE(SUM(gold),0) FROM mail WHERE claimed=0) AS n').get().n,240);
+ await s.call('mail-claim',{id:'alice',all:true});
  const buyer=(await s.call('game-profile',{id:'bob'})).heroes[1];assert.equal(buyer.inventory.length,1);assert.equal((await s.call('game-profile',{id:'alice'})).gold,130);
  // Retry original award after the item has changed owner must never mint a replacement.
- await s.call('settle',run('alice',[player('alice')]));assert.equal((await s.call('game-profile',{id:'alice'})).heroes[0].inventory.length,0);
- assert.equal(s.sqlite.prepare('SELECT COUNT(*) AS n FROM items').get().n,3);
+ await s.call('settle',run('alice',[player('alice')]));assert.equal((await s.call('game-profile',{id:'alice'})).heroes[0].inventory.filter(i=>i.definition.kind==='equipment').length,0);
+ assert.equal(s.sqlite.prepare("SELECT COUNT(*) AS n FROM items WHERE slot='head'").get().n,3);
 });
 test('friends, session-backed presence and private chat enforce membership and escape does not change stored text',async t=>{
  const s=setup(t);for(const id of ['alice','bob','carol'])await user(s,id);const a=new Accounts(s,'test');const token=await a.createSession('bob');const session=s.sqlite.prepare('SELECT hash FROM sessions').get().hash;

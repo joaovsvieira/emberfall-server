@@ -26,6 +26,7 @@ export class Multiplayer {
      room.reconnection.minUptime=0;room.reconnection.maxDelay=2000;this.room=room;this.sessionId=room.sessionId;this.connected=true;this.seq=0;this.pending=[];this.round=-1;
      const current=()=>generation===this.generation&&this.room===room&&!this.leaving;
      room.onMessage('rewards',(v:any)=>{if(current()){this.rewards=v;this.onRewards(v);}});
+     room.onMessage('hero-progress',()=>{if(current())this.onProgress();});
      room.onMessage('progress-saved',()=>{if(current())this.onProgress();});
      room.onMessage('party-left',(name:string)=>{if(current())this.onPartyLeft(name);});
      room.onMessage('session-ended',(s:any)=>{if(current()){this.receive(s);this.onSessionEnd(s);}});

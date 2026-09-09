@@ -79,6 +79,8 @@ export class Multiplayer {
                 this.rewards = v;
                 this.onRewards(v);
             } });
+            room.onMessage('hero-progress', () => { if (current())
+                this.onProgress(); });
             room.onMessage('progress-saved', () => { if (current())
                 this.onProgress(); });
             room.onMessage('party-left', (name) => { if (current())

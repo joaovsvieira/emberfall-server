@@ -22,3 +22,9 @@ test('menus and pause preserve typing, movement and mouse do not leak into a res
  const typed=event('keydown',{code:'KeyW'});Object.defineProperty(typed,'target',{value:{closest:()=>({})}});keys.dispatchEvent(typed);
  assert.equal(typed.defaultPrevented,false);assert.deepEqual(controls.sample().actions,[]);
 });
+
+test('potion shortcuts are single presses and inactive in menus, pause and editable fields',()=>{
+ const keys=new EventTarget();let active=false,used=[];new GameControls(()=>active,()=>{},keys,new EventTarget(),slot=>used.push(slot));
+ keys.dispatchEvent(event('keydown',{code:'Digit1'}));assert.deepEqual(used,[]);active=true;keys.dispatchEvent(event('keydown',{code:'Digit1'}));keys.dispatchEvent(event('keydown',{code:'Digit1',repeat:true}));assert.deepEqual(used,[1]);
+ const typed=event('keydown',{code:'Digit2'});Object.defineProperty(typed,'target',{value:{closest:()=>({})}});keys.dispatchEvent(typed);assert.equal(typed.defaultPrevented,false);assert.deepEqual(used,[1]);active=false;keys.dispatchEvent(event('keydown',{code:'Digit3'}));assert.deepEqual(used,[1]);
+});

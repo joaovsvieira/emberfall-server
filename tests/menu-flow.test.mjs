@@ -4,7 +4,7 @@ import {World} from '../dist/engine.js';
 // A small scene/element facade exercises UI state transitions without a browser or renderer.
 globalThis.Phaser={Scene:class{},Game:class{},Scale:{FIT:1,CENTER_BOTH:1},AUTO:0};
 const elements=new Map();
-function element(id){if(!elements.has(id)){const classes=new Set(['hidden']);elements.set(id,{textContent:'',disabled:false,style:{},classList:{toggle(k,on){if(on)classes.add(k);else classes.delete(k)},add(k){classes.add(k)},remove(k){classes.delete(k)},contains(k){return classes.has(k)}},focus(){},blur(){}});}return elements.get(id);}
+function element(id){if(!elements.has(id)){const classes=new Set(['hidden']);elements.set(id,{textContent:'',disabled:false,style:{},classList:{toggle(k,on){if(on)classes.add(k);else classes.delete(k)},add(k){classes.add(k)},remove(k){classes.delete(k)},contains(k){return classes.has(k)}},setAttribute(k,v){this[k]=v},focus(){this.focused=true},blur(){}});}return elements.get(id);}
 globalThis.document={getElementById:element};globalThis.requestAnimationFrame=fn=>fn();
 const {ForestScene}=await import('../dist/game.js');
 const fluent=()=>new Proxy({}, {get(_target,key){return key==='scrollX'?0:()=>fluent();},set(){return true}});
@@ -30,3 +30,5 @@ test('saved campaign defeat exposes restart, while a victory remains in its moda
  s.world.status='won';s.showCampaignResult();assert.equal(s.primaryAction,'next');assert.equal(element('chapter-loot').classList.contains('hidden'),false);assert.equal(element('modal').classList.contains('hidden'),false);
  s.net.lobby.progress='error';s.updateCampaignButtons();assert.equal(s.primaryAction,'retry-progress');
 });
+
+test('result modal focuses its neutral container, never a menu-exit button',()=>{const s=scene();element('modal-menu').focused=false;s.showModal('DUELO','Vitória!','Fim do duelo','REVANCHE');assert.equal(element('modal-menu').focused,false);assert.equal(element('modal').focused,true);assert.equal(element('modal').tabindex,'-1');});

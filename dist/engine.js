@@ -15,7 +15,7 @@ export const CHAPTERS = {
             { x: 650, y: 495, w: 160 }, { x: 960, y: 420, w: 150 }, { x: 1260, y: 500, w: 160 }, { x: 1570, y: 435, w: 150 }, { x: 1900, y: 495, w: 155 }, { x: 2270, y: 410, w: 145 }, { x: 2540, y: 490, w: 150 }, { x: 2840, y: 465, w: 145 }, { x: 3120, y: 410, w: 145 }, { x: 3390, y: 490, w: 150 }
         ] }
 };
-export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, maxHp: 100, damage: 100, defense: 0, speed: 100, attackSpeed: 100, grounded: true, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0 }; }
+export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, skin: 'default', title: '', xp: 0, nextXp: 100, level: 1, potionUntil: 0, potions: [], x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, maxHp: 100, damage: 100, defense: 0, speed: 100, attackSpeed: 100, grounded: true, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0 }; }
 export class World {
     get level() { return CHAPTERS[this.chapter]; }
     get platforms() { return this.level.platforms; }
@@ -55,7 +55,7 @@ export class World {
             specs.splice(0, specs.length, ['goblin', 660, 615], ['bat', 840, 470], ['wraith', 1330, 495], ['goblin', 1550, 615], ['bat', 1710, 450], ['wraith', 1940, 480], ['goblin', 2130, 615], ['bat', 2300, 460], ['goblin', 2590, 615], ['wraith', 2810, 490], ['bat', 3010, 440], ['wraith', 3370, 470], ['goblin', 3500, 615], ['bat', 3670, 460], ['boss', 4390, 615]);
         if (this.chapter === 3)
             specs.splice(0, specs.length, ['goblin', 590, 615], ['bat', 780, 445], ['wraith', 1260, 480], ['goblin', 1430, 615], ['bat', 1590, 435], ['wraith', 1740, 475], ['goblin', 1930, 615], ['bat', 2110, 440], ['wraith', 2290, 455], ['goblin', 2570, 615], ['bat', 2680, 425], ['wraith', 2860, 470], ['bat', 3100, 430], ['wraith', 3360, 450], ['goblin', 3460, 615], ['goblin', 3600, 615], ['bat', 3750, 450], ['boss', 4390, 615]);
-        this.enemies = specs.map(([kind, x, y], id) => ({ id, kind, x, y, home: x, baseY: y, hp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, maxHp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, dir: -1, timer: 1.1 + id * .13, windup: 0, flash: 0, knock: 0, phase: 0, active: false, dead: false, attackX: x }));
+        this.enemies = specs.map(([kind, x, y], id) => ({ id, kind, species: this.chapter === 2 ? ({ goblin: 'lava_imp', bat: 'ashwing', wraith: 'ember_mage', boss: 'obsidian_guardian' }[kind] ?? kind) : this.chapter === 3 ? ({ goblin: 'frost_reaver', bat: 'ice_wyvern', wraith: 'frost_sorcerer', boss: 'ice_dragon' }[kind] ?? kind) : kind === 'bat' ? 'forest_dragon' : kind, x, y, home: x, baseY: y, hp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, maxHp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, dir: -1, timer: 1.1 + id * .13, windup: 0, flash: 0, knock: 0, phase: 0, attackAnim: 0, active: false, dead: false, attackX: x }));
         if (this.chapter > 1)
             for (const e of this.enemies) {
                 e.hp = e.maxHp = Math.round(e.maxHp * (this.chapter === 3 ? (e.kind === 'boss' ? 2.15 : 1.75) : (e.kind === 'boss' ? 1.5 : 1.35)));
@@ -76,11 +76,8 @@ export class World {
             this.emit('won');
             return;
         }
+        p.revive = 0;
         this.emit('downed');
-        if (this.players.every(p => p.hp <= 0)) {
-            this.status = 'dead';
-            this.emit('dead');
-        }
     } }
     hitOpponent(target, damage) {
         const attacker = this.player;
@@ -264,11 +261,17 @@ export class World {
             for (const p of this.players) {
                 if (p.hp > 0)
                     continue;
-                const helper = this.players.find(q => q.hp > 0 && Math.hypot(q.x - p.x, q.y - p.y) < 95);
-                p.revive = helper ? p.revive + dt : 0;
-                if (p.revive >= 2.5) {
+                p.revive += dt;
+                if (p.revive >= 3) {
                     this.player = p;
-                    p.hp = Math.round(p.maxHp * .4);
+                    p.hp = p.maxHp;
+                    p.x = this.bossActive ? 3980 : p.checkpoint;
+                    p.y = 430;
+                    p.vx = p.vy = 0;
+                    p.jumps = 0;
+                    p.jumpBuffer = 0;
+                    p.attack = 0;
+                    p.dash = 0;
                     p.invincible = 2;
                     p.revive = 0;
                     this.emit('revived', { x: p.x, y: p.y - 90 });
@@ -362,6 +365,7 @@ export class World {
                 continue;
             this.player = target;
             const p = target;
+            e.attackAnim = Math.max(0, e.attackAnim - dt);
             e.flash = Math.max(0, e.flash - dt);
             e.knock *= Math.max(0, 1 - dt * 10);
             e.x += e.knock * dt;
@@ -374,6 +378,7 @@ export class World {
             if (e.windup > 0) {
                 e.windup -= dt;
                 if (e.windup <= 0) {
+                    e.attackAnim = .3;
                     if (e.kind === 'boss') {
                         if (e.phase % 2 === 0) {
                             this.emit('slam', { x: e.attackX, y: 615 });
@@ -421,6 +426,7 @@ export class World {
                     const angle = Math.atan2(p.y - 50 - e.y, p.x - e.x);
                     this.projectiles.push({ x: e.x, y: e.y - 35, vx: Math.cos(angle) * 235, vy: Math.sin(angle) * 235, life: 3, friendly: false, hits: new Set() });
                     e.timer = 2.6;
+                    e.attackAnim = .3;
                     this.emit('enemyShot', { x: e.x, y: e.y - 35 });
                 }
             }

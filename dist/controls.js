@@ -1,5 +1,5 @@
 const bindings = { Space: 'jump', KeyW: 'jump', ArrowUp: 'jump', ShiftLeft: 'dash', ShiftRight: 'dash', KeyK: 'dash', KeyQ: 'skill1', KeyU: 'skill1', KeyE: 'skill2', KeyI: 'skill2' };
-const movement = new Set(['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight']);
+const movement = new Set(['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyS']);
 export function isEditing(target) { return !!target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])'); }
 // No global Phaser captures: menus and form fields keep native keyboard behavior.
 export class GameControls {
@@ -58,6 +58,6 @@ export class GameControls {
             this.reset();
             return {};
         }
-        return { left: this.down.has('KeyA') || this.down.has('ArrowLeft'), right: this.down.has('KeyD') || this.down.has('ArrowRight'), attack: this.mouse, actions: [...new Set(this.actions.splice(0))] };
+        return { down: this.down.has('KeyS'), left: this.down.has('KeyA') || this.down.has('ArrowLeft'), right: this.down.has('KeyD') || this.down.has('ArrowRight'), attack: this.mouse, actions: [...new Set(this.actions.splice(0))] };
     }
 }

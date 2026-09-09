@@ -1,3 +1,5 @@
+> Atualização 0.11: [regras e extensão](docs/ECLIPSE_UPDATE.md) — Nyxar, capítulos IV–VI, poder, atalhos de consumíveis e baú da semana anterior.
+
 > Atualização 0.10: consulte [docs/ADVENTURE_SYSTEMS.md](docs/ADVENTURE_SYSTEMS.md) para profissões, poções, correio, baús, conquistas, skins e as novas regras de chave/vidas. Esse documento prevalece sobre regras anteriores.
 
 # Emberfall — Ecos da Floresta
@@ -21,6 +23,7 @@ O servidor entrega também o jogo e configura sua conexão automaticamente. As c
 
 - A/D ou setas: mover.
 - W, seta para cima ou espaço: pulo e pulo duplo.
+- S: descer pelas plataformas suspensas até o chão.
 - Clique esquerdo: ataque do herói (segure para repetir).
 - Shift/K: dash com esquiva.
 - Q/U: primeira habilidade do herói.
@@ -30,7 +33,7 @@ O servidor entrega também o jogo e configura sua conexão automaticamente. As c
 
 ## Cooperativo
 
-- Sala privada com código aleatório de seis caracteres, capacidade de quatro jogadores e sem listagem pública.
+- Sala privada com código aleatório de seis caracteres ou sala pública opcional, capacidade de quatro jogadores.
 - Apelidos de 2 a 18 caracteres, confirmação de prontidão e contagem regressiva.
 - Cada jogador tem posição, vida, combo e recargas independentes.
 - Inimigos, projéteis, dano, coleta de cura, chefe e resultado são controlados pelo servidor.
@@ -63,7 +66,7 @@ Este projeto inclui `render.yaml` com um único **Web Service / Free** na regiã
 4. Publique e abra a URL HTTPS fornecida pelo Render. Esse endereço já inclui o jogo e o multiplayer.
 5. Para conectar o endereço Sites anterior ao mesmo servidor, configure `dist/multiplayer-config.js` com a origem HTTPS exata do Render e publique uma nova versão no Sites. Não inclua caminhos, tokens ou credenciais. O Node ignora esse arquivo e fornece automaticamente `location.origin`.
 
-O plano gratuito é adequado a testes de protótipo, não uma garantia de disponibilidade para um jogo comercial. Ele suspende o serviço após 15 minutos sem tráfego recebido, desperta em aproximadamente um minuto e disponibiliza 750 horas gratuitas mensais por workspace. Salas e partidas são temporárias em memória: reiniciar/republicar o servidor encerra as partidas. Não há progressão persistente para perder. Não adicione monitoramento artificial para contornar a suspensão gratuita.
+O plano gratuito é adequado a testes de protótipo, não uma garantia de disponibilidade para um jogo comercial; consulte as condições atuais do provedor nos links abaixo. Salas e partidas são temporárias em memória: reiniciar/republicar o servidor encerra as partidas. Contas, progressão, itens e recompensas já gravadas permanecem no D1; estados e tentativas de gravação ainda em memória não sobrevivem ao reinício. Não adicione monitoramento artificial para contornar a suspensão gratuita.
 
 Fontes: https://render.com/docs/free e https://render.com/docs/websocket
 
@@ -88,7 +91,7 @@ npm test
 
 Os testes cobrem a lógica do modo solo, comandos inválidos e repetidos, habilidades independentes, reanimação, entrada conjunta no chefe e duas e quatro conexões WebSocket reais: sala, prontidão, limite de vagas, movimento, dano compartilhado, pausa, reconexão, vitória e reinício.
 
-As animações usam poucos quadros com movimento procedural. O jogo é otimizado para teclado e tela horizontal. Contas e capítulos são persistentes; inventário, evolução de níveis e matchmaking público ainda não estão implementados.
+As animações usam poucos quadros com movimento procedural. O jogo é otimizado para teclado e tela horizontal. Contas, capítulos, inventário e níveis são persistentes; salas públicas opcionais estão implementadas. As seções de atualizações abaixo são históricas: as regras atuais estão em [docs/ECLIPSE_UPDATE.md](docs/ECLIPSE_UPDATE.md), com continuidade em [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Assets e licenças
 

@@ -1,8 +1,8 @@
 import {Room, ServerError} from '@colyseus/core';
 import {randomInt,randomUUID} from 'node:crypto';
-import {World, createPlayer, HEROES} from '../dist/engine.js';
+import {World, createPlayer, HEROES, CHAPTER_COUNT} from '../dist/engine.js';
 
-import {lootPool,attributes,ITEMS,progression,heroTitle,itemDefinition} from './catalog.mjs';
+import {lootPool,attributes,heroPower,CHAPTER_IDS,ITEMS,progression,heroTitle,itemDefinition} from './catalog.mjs';
 import {mythicRules,mythicUpgrade} from './mythic.mjs';
 import {weekStart} from './catalog.mjs';
 const codes=new Set();
@@ -19,9 +19,9 @@ export function cleanName(value){
 export function validateInput(packet,lastSeq){
   if(!packet||typeof packet!=='object'||!Number.isSafeInteger(packet.seq)||packet.seq<=lastSeq||packet.seq>lastSeq+240)return null;
   const v=packet.input;if(!v||typeof v!=='object')return null;
-  if(['left','right','attack'].some(k=>v[k]!==undefined&&typeof v[k]!=='boolean'))return null;
+  if(['left','right','down','attack'].some(k=>v[k]!==undefined&&typeof v[k]!=='boolean'))return null;
   if(v.actions!==undefined&&(!Array.isArray(v.actions)||v.actions.length>5||v.actions.some(a=>!['jump','attack','dash','skill1','skill2'].includes(a))))return null;
-  return {seq:packet.seq,input:{left:v.left===true,right:v.right===true,attack:v.attack===true,actions:[...new Set(v.actions??[])]}};
+  return {seq:packet.seq,input:{left:v.left===true,right:v.right===true,down:v.down===true,attack:v.attack===true,actions:[...new Set(v.actions??[])]}};
 }
 export class ForestRoom extends Room {
   maxClients=2;maxMessagesPerSecond=120;
@@ -33,7 +33,7 @@ export class ForestRoom extends Room {
   async onCreate(options={}){
     if(options.mode!==undefined&&!['solo','coop','pvp'].includes(options.mode))throw new ServerError(400,'Modo inválido.');
     this.mode=options.mode??'coop';this.maxClients=this.mode==='solo'?1:this.mode==='pvp'?2:4;
-    this.chapter=Number(options.chapter??1);if(![1,2,3].includes(this.chapter))throw new ServerError(400,'Capítulo inválido.');
+    this.chapter=Number(options.chapter??1);if(!CHAPTER_IDS.includes(this.chapter))throw new ServerError(400,'Capítulo inválido.');
     let creator;try{creator=await this.accounts.authenticate(options);}catch(e){throw new ServerError(401,e.message);}this.creatorAccountId=creator.id;const hero=creator.heroes.find(h=>h.id===(options.hero??'kael'));if((hero?.unlockedChapter??creator.unlockedChapter??1)<this.chapter)throw new ServerError(403,'Este herói precisa liberar o capítulo para criar a sala.');
     if(codes.size>=MAX_ROOMS)throw new ServerError(503,'Todas as salas estão ocupadas. Tente novamente em instantes.');
     let code;do{code=Array.from({length:6},()=>alphabet[randomInt(alphabet.length)]).join('');}while(codes.has(code));
@@ -48,7 +48,7 @@ export class ForestRoom extends Room {
     this.onMessage('key',(client,value)=>{if(client.sessionId===this.host&&this.stage==='lobby'&&typeof value==='boolean'&&this.mode!=='pvp'){this.useKey=value;for(const m of this.members.values())m.ready=false;this.sendLobby();}});
     this.onMessage('pause',(client,value)=>{const m=this.members.get(client.sessionId);if(m&&typeof value==='boolean'){m.paused=value;this.clearInputs();this.sendLobby();}});
     this.onMessage('restart',(client)=>{if(client.sessionId!==this.host||this.stage!=='playing'||!['dead','won'].includes(this.world.status)||this.progress==='saving'||this.progress==='error')return;if((this.mode==='pvp'&&this.members.size<2)||[...this.members.values()].some(m=>!m.connected)){client.send('notice','Volte ao menu para criar uma nova sala com seu companheiro.');return;}if(this.mode==='pvp')this.beginRound();else this.returnLobby();});
-    this.onMessage('next-chapter',(client)=>{if(client.sessionId!==this.host||this.mode==='pvp'||this.chapter>=3||this.world.status!=='won'||this.stage!=='playing'||this.progress!=='saved'||[...this.members.values()].some(m=>!m.connected||m.unlockedChapter<this.chapter+1))return;this.returnLobby(this.chapter+1);});
+    this.onMessage('next-chapter',(client)=>{if(client.sessionId!==this.host||this.mode==='pvp'||this.chapter>=CHAPTER_COUNT||this.world.status!=='won'||this.stage!=='playing'||this.progress!=='saved'||[...this.members.values()].some(m=>!m.connected||m.unlockedChapter<this.chapter+1))return;this.returnLobby(this.chapter+1);});
     this.onMessage('retry-progress',()=>{if(this.progress==='error')void this.saveProgress();});
     this.onMessage('close',(client)=>{if(client.sessionId===this.host){
       if(this.mode==='pvp'&&this.world.status==='playing'){this.world.winnerId=[...this.members.keys()].find(id=>id!==client.sessionId)??null;this.world.status='won';this.recordResult('forfeit');}
@@ -103,7 +103,7 @@ export class ForestRoom extends Room {
   onDispose(){codes.delete(this.roomId);publicRooms.delete(this.roomId);if(this.mythic&&!this.settlement)void this.accounts.store.call('key-resolve',{round:this.mythic.round,success:false}).catch(()=>{});}
   clearInputs(){for(const m of this.members.values()){m.input={};m.queue=[];m.ack=m.lastSeq;}}
   isPaused(){return [...this.members.values()].some(m=>m.paused||!m.connected);}
-  lobby(){const host=this.members.get(this.host);const key=host?.keys?.find(k=>k.chapter===this.chapter&&k.week===weekStart());return {visible:this.visible,useKey:this.useKey,key:key??null,mythic:this.mythicView(),preparing:this.preparing,progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,code:this.roomId,host:this.host,stage:this.stage,round:this.round,countdown:this.stage==='countdown'?Math.max(0,Math.ceil((this.countdownAt-Date.now())/1000)):0,paused:this.isPaused(),members:[...this.members.values()].map(({id,name,hero,ready,connected,paused,index})=>({id,name,hero,ready,connected,paused,index}))};}
+  lobby(){const host=this.members.get(this.host);const key=host?.keys?.find(k=>k.chapter===this.chapter&&k.week===weekStart());return {visible:this.visible,useKey:this.useKey,key:key??null,mythic:this.mythicView(),preparing:this.preparing,progress:this.progress,maxPlayers:this.maxClients,chapter:this.chapter,mode:this.mode,scores:[...this.scores.values()],result:this.result,code:this.roomId,host:this.host,stage:this.stage,round:this.round,countdown:this.stage==='countdown'?Math.max(0,Math.ceil((this.countdownAt-Date.now())/1000)):0,paused:this.isPaused(),members:[...this.members.values()].map(({id,name,hero,ready,connected,paused,index,stats})=>({id,name,hero,ready,connected,paused,index,power:heroPower(stats??attributes(hero,0))}))};}
   sendLobby(){this.broadcast('lobby',this.lobby());}
   returnLobby(chapter=this.chapter){this.chapter=chapter;this.stage='lobby';this.world.status='ready';this.mythic=null;this.useKey=false;this.unlock();for(const m of this.members.values())m.ready=false;this.sendLobby();}
   async prepareRound(client){
@@ -118,7 +118,7 @@ export class ForestRoom extends Room {
   mythicView(){if(!this.mythic)return null;const m=this.mythic,elapsed=m.startedAt?Math.max(0,(this.finishedAt||Date.now())-m.startedAt):0;const kills=this.world.enemies.filter(e=>e.kind!=='boss'&&e.dead).length;return {...m,remainingMs:Math.max(0,m.limitMs-elapsed),killed:kills,upgrade:mythicUpgrade(elapsed,m.limitMs,kills,m.total),elapsedMs:elapsed};}
   beginRound(chapter=this.chapter){
     this.rewardCache.clear();this.settlement=null;this.xpSavedCount=0;this.finishedAt=0;this.participants=[...this.members.values()].map(m=>({id:m.accountId,sessionId:m.id,hero:m.hero,name:m.name,loot:lootPool(chapter)[randomInt(lootPool(chapter).length)].id}));
-    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);Object.assign(p,m.stats??attributes(m.hero,0),{skin:m.skin,title:m.title,xp:m.xp,nextXp:m.nextXp,level:m.level,potions:m.potions,potionUntil:m.potionUntil??0});p.hp=p.maxHp;if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
+    this.chapter=chapter;this.lock();this.world=new World(this.chapter);this.world.mode=this.mode==='pvp'?'pvp':'coop';this.result=null;this.progress='idle';this.progressRetries=0;this.accumulator=0;this.round++;this.progressIds=[...this.members.values()].map(m=>m.accountId);this.world.players=[...this.members.values()].map((m,i)=>{m.input={};m.queue=[];m.ack=m.lastSeq;m.paused=false;const p=createPlayer(m.id,m.name,this.mode==='pvp'?3980+i*640:190+i*85,m.hero);Object.assign(p,m.stats??attributes(m.hero,0),{skin:m.skin,title:m.title,xp:m.xp,nextXp:m.nextXp,level:m.level,potions:m.potions,potionUntil:m.potionUntil??0});p.power=heroPower(m.stats??attributes(m.hero,0));p.hp=p.maxHp;if(this.mode==='pvp'){p.dir=i===0?1:-1;p.checkpoint=p.x;p.zone=2;}return p;});
     this.world.player=this.world.players[0];
     if(this.mode==='pvp')this.world.enemies=[];
     for(const e of this.world.enemies){e.hp=e.maxHp=Math.round(e.maxHp*(this.mythic?.hp??1)*(1+(this.world.players.length-1)*(e.kind==='boss'?.65:.35)));}
@@ -155,7 +155,7 @@ export class ForestRoom extends Room {
       const result=this.accounts.store?await this.accounts.complete(payload.players.filter(p=>!p.departed).map(p=>p.id),chapter,payload.round,payload):{rewards:[]};
       if(this.round!==round)return;
       for(const m of this.members.values()){
-        if(this.mode!=='pvp'&&payload.outcome==='won')m.unlockedChapter=Math.max(m.unlockedChapter,Math.min(3,chapter+1));
+        if(this.mode!=='pvp'&&payload.outcome==='won')m.unlockedChapter=Math.max(m.unlockedChapter,Math.min(CHAPTER_COUNT,chapter+1));
         const reward=result.rewards.find(r=>r.account_id===m.accountId);if(reward){reward.item=itemDefinition(reward)??null;this.rewardCache.set(m.id,reward);this.clients.find(c=>c.sessionId===m.id)?.send('rewards',reward);}
         // Refresh equipment and levels before the next chapter/rematch.
         if(this.accounts.getProfile){const profile=await this.accounts.getProfile(m.accountId);const hero=profile?.heroes.find(h=>h.id===m.hero);m.stats=hero?.attributes??m.stats;m.keys=hero?.keys??[];m.unlockedChapter=hero?.unlockedChapter??m.unlockedChapter;if(hero){m.xp=hero.xp;m.nextXp=hero.nextXp;m.level=hero.level;m.potions=(profile.hotbar??[]).filter(b=>b.hero===m.hero).map(b=>({slot:b.slot,count:hero.inventory.filter(i=>i.catalog_id===b.catalog_id&&!i.listed).length}));}}

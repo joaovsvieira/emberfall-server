@@ -17,11 +17,11 @@ export async function dataOperation(db,op,v){
  if(op==='logout'){await run('DELETE FROM sessions WHERE hash=?',v.hash);return {ok:true};}
  if(op==='hero'){await run('UPDATE accounts SET preferred_hero=? WHERE id=?',v.hero,v.id);return {ok:true};}
  if(op==='complete'){
-  if(![1,2,3].includes(v.chapter)||!Array.isArray(v.ids)||v.ids.length>4)throw new Error('Invalid completion');
+  if(![1,2,3,4,5,6].includes(v.chapter)||!Array.isArray(v.ids)||v.ids.length>4)throw new Error('Invalid completion');
   const statements=[];
   for(const id of new Set(v.ids)){
    statements.push(db.prepare('INSERT OR IGNORE INTO completions (id,account_id,chapter,created_at) SELECT ?,id,?,? FROM accounts WHERE id=? AND unlocked_chapter>=?').bind(`${v.round}:${id}`,v.chapter,Date.now(),id,v.chapter));
-   statements.push(db.prepare('UPDATE accounts SET unlocked_chapter=MAX(unlocked_chapter,?) WHERE id=? AND unlocked_chapter>=?').bind(Math.min(3,v.chapter+1),id,v.chapter));
+   statements.push(db.prepare('UPDATE accounts SET unlocked_chapter=MAX(unlocked_chapter,?) WHERE id=? AND unlocked_chapter>=?').bind(Math.min(6,v.chapter+1),id,v.chapter));
   }
   await db.batch(statements);return {ok:true};
  }

@@ -13,7 +13,7 @@ function observe(room){room.reconnection.minUptime=0;room.reconnection.maxDelay=
 
 test('input validation strips untrusted authority fields and rejects replay',()=>{
   const clean=validateInput({seq:1,input:{left:true,actions:['jump','jump'],x:4000,hp:999,damage:999}},0);
-  assert.deepEqual(clean,{seq:1,input:{left:true,right:false,attack:false,actions:['jump']}});
+  assert.deepEqual(clean,{seq:1,input:{left:true,right:false,down:false,attack:false,actions:['jump']}});
   assert.equal(validateInput({seq:1,input:{}},1),null);
   assert.equal(validateInput({seq:2,input:{left:'yes'}},1),null);
   assert.equal(validateInput({seq:2,input:{actions:['teleport']}},1),null);

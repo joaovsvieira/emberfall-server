@@ -1,7 +1,7 @@
 import { Adventure } from './adventure.js';
 import { Expansion } from './expansion.js';
 import { Features } from './features.js';
-import { HEROES, CHAPTERS } from './engine.js';
+import { HEROES, CHAPTERS, CHAPTER_COUNT, ROMAN } from './engine.js';
 const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
 export class Hub {
@@ -27,9 +27,8 @@ export class Hub {
         $('account-trigger').onclick = e => { e.stopPropagation(); this.toggleAccountMenu(); };
         $('account-settings').onclick = () => { this.closeAccountMenu(); this.setTab('settings'); };
         $('account-logout').onclick = () => { this.closeAccountMenu(); void this.logout(); };
-        $('map-1').onclick = () => this.selectChapter(1);
-        $('map-2').onclick = () => this.selectChapter(2);
-        $('map-3').onclick = () => this.selectChapter(3);
+        for (let id = 1; id <= CHAPTER_COUNT; id++)
+            $('map-' + id).onclick = () => this.selectChapter(id);
         $('start').onclick = () => void this.playSolo();
         $('hero-to-map').onclick = () => this.setTab('map');
         this.features = new Features(this);
@@ -168,7 +167,7 @@ export class Hub {
         if (!this.profile)
             return;
         const unlocked = this.heroProgress();
-        for (let id = 1; id <= 3; id++) {
+        for (let id = 1; id <= CHAPTER_COUNT; id++) {
             const button = $('map-' + id);
             button.classList.toggle('locked', id > unlocked);
             button.classList.toggle('selected', id === this.chapter);
@@ -186,7 +185,7 @@ export class Hub {
     toggleAccountMenu() { const open = $('account-dropdown').classList.contains('hidden'); visible('account-dropdown', open); $('account-trigger').setAttribute('aria-expanded', String(open)); }
     closeAccountMenu() { visible('account-dropdown', false); $('account-trigger').setAttribute('aria-expanded', 'false'); }
     renderFooter() { if (!this.profile)
-        return; const progress = this.heroProgress(); const chapter = CHAPTERS[progress]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${['', 'I', 'II', 'III'][progress]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle', this.profile.heroes.find((h) => h.id === hero)?.skin)).getSourceImage().toDataURL(); }
+        return; const progress = this.heroProgress(); const chapter = CHAPTERS[progress]; $('footer-gems').textContent = String(this.profile.gems ?? 0); $('footer-gold').textContent = String(this.profile.gold ?? 0); $('footer-progress').textContent = `CAPÍTULO ${ROMAN[progress]} · ${chapter.name.toUpperCase()}`; const hero = this.scene.selectedHero; const meta = HEROES[hero]; $('footer-hero-name').textContent = meta.name.toUpperCase(); $('footer-hero-image').src = this.scene.textures.get(this.scene.heroKey(hero, 'idle', this.profile.heroes.find((h) => h.id === hero)?.skin)).getSourceImage().toDataURL(); }
     toggleWidget(which) { const id = which === 'chat' ? 'chat-widget' : 'friends-widget'; const other = which === 'chat' ? 'friends-widget' : 'chat-widget'; const open = $(id).classList.contains('hidden'); visible(other, false); visible(id, open); $('footer-chat').setAttribute('aria-expanded', String(which === 'chat' && open)); $('footer-friends').setAttribute('aria-expanded', String(which === 'friends' && open)); }
     closeWidgets() { visible('chat-widget', false); visible('friends-widget', false); $('footer-chat').setAttribute('aria-expanded', 'false'); $('footer-friends').setAttribute('aria-expanded', 'false'); }
     heroProgress() { return this.profile?.heroes.find((h) => h.id === this.scene.selectedHero)?.unlockedChapter ?? 1; }

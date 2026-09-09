@@ -1,0 +1,30 @@
+{
+  "mode": "built-in image_gen",
+  "assets": [
+    {
+      "name": "desert",
+      "path": "/workspace/scratch/fa8f854ee71a/new-art/desert.png",
+      "prompt": "Landscape 1536x1024 painted fantasy side-scroller game background. Ancient ruined sandstone kingdom amid amber desert dunes, monumental broken palace arches and distant pyramid silhouettes, warm sunlight through dust, finely detailed golden sandstone and atmospheric blue distance. Rich painterly hand-painted game environment matching detailed fantasy ruined cathedral forest visual quality. Side-on view, flat foreground stone terrain running horizontally edge-to-edge at about 82 percent of image height with thick dark stone beneath for cropping. Open readable center for gameplay. No people, no characters, no text, no UI, no watermarks."
+    },
+    {
+      "name": "abyss",
+      "path": "/workspace/scratch/fa8f854ee71a/new-art/abyss.png",
+      "prompt": "Landscape 1536x1024 painted fantasy side-scroller game background. Entire scene submerged deep under ocean: enormous ruined palace arches and colonnades, bioluminescent teal and cyan coral, violet sea anemones, turquoise shafts of light filtering down, mysterious layered blue depths. Rich painterly hand-painted game environment matching detailed fantasy ruined cathedral forest visual quality. Side-on view, flat foreground ancient stone terrain running horizontally edge-to-edge at about 82 percent of image height with thick dark stone beneath for cropping. Open readable center for gameplay. No people, no characters or creatures, no text, no UI, no watermarks."
+    },
+    {
+      "name": "sky",
+      "path": "/workspace/scratch/fa8f854ee71a/new-art/sky.png",
+      "prompt": "Landscape 1536x1024 painted fantasy side-scroller game background. Celestial floating ruined citadel above a sea of glowing golden clouds, monumental white stone gothic arches and spires on floating islands, airy blue sky, shafts of warm celestial sunlight. Rich painterly hand-painted game environment matching detailed fantasy ruined cathedral forest visual quality. Side-on view, flat foreground white stone terrain running horizontally edge-to-edge at about 82 percent of image height with thick darker stone beneath for cropping. Open readable center for gameplay. No people, no characters, no text, no UI, no watermarks."
+    },
+    {
+      "name": "nyxar",
+      "path": "/workspace/scratch/fa8f854ee71a/new-art/nyxar.png",
+      "prompt": "Use case stylized-concept. Production sprite atlas, genuinely transparent alpha background, wide 2048x1024, exactly 4 equal columns by 2 equal rows. NO grid lines or text. Each cell contains exactly one entire figure, separate with generous transparent margins, full bodies including hands and feet, same feet baseline within each row. ALL side view facing RIGHT. Top row: same humanoid male purple warlock Nyxar in four poses, pale face, hood, dark violet robes, glowing purple hands. Left to right idle, running stride left leg forward, running stride right leg forward, attacking with one glowing hand extended right. Bottom row: same Nyxar identity transformed into hulking horned purple demon with claws and glowing violet eyes, NO weapons; poses left to right idle, running stride left leg forward, running stride right leg forward, claw attack extending right. Painted fantasy game sprite art, clean readable silhouette and rich detailed shading. Genuine alpha transparency, no checkerboard illustration, no background scenery, no ground, no shadows spanning cells. Keep each figure strictly inside its own equal atlas cell."
+    },
+    {
+      "name": "new-enemies",
+      "path": "/workspace/scratch/fa8f854ee71a/new-art/new-enemies.png",
+      "prompt": "Use case stylized-concept. Production sprite atlas genuinely transparent alpha background, 2048x1536, exactly 4 equal columns by 3 equal rows. NO grid lines or text. Each cell contains exactly one entire figure, separate with generous transparent margins, full bodies including appendages, feet and wings. All figures side profile facing LEFT. Row 1 left to right: desert scorpion guardian with sandstone armor (ground enemy); flying golden scarab with spread wings; hooded sand priest holding magical sand orb (caster); enormous jackal-headed sandstone pharaoh boss. Row 2 left to right: crustacean warrior with shell armor and claws; flying blue manta ray; abyss siren caster with glowing cyan magic; abyss leviathan boss coiled sea monster with large fins. Row 3 left to right: storm knight in blue silver armor; harpy with winged arms spread; cloud seer caster in pale robes; winged storm titan boss holding electric energy. Painted fantasy game sprite art, clean readable silhouette, detailed luminous shading. Genuine alpha transparency, no checkerboard illustration, no scenery or ground, no shadows spanning cells. Keep every figure strictly inside its own equal atlas cell, boss figures larger within cell but fully visible."
+    }
+  ]
+}

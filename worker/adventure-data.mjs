@@ -2,10 +2,10 @@ import {ITEMS,HERO_IDS,PROFESSIONS,RECIPES,SKINS,ACHIEVEMENTS,POTION,weekStart,q
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 export async function adventureProfile(db,id){
  const all=async(sql,...args)=>(await db.prepare(sql).bind(...args).all()).results;
- const [professions,recipes,hotbar,skins,achievements,claims,unread]=await Promise.all([
-  all('SELECT profession FROM professions WHERE account_id=? AND paid=1',id),all('SELECT recipe FROM recipes WHERE account_id=?',id),all('SELECT * FROM hero_hotbar WHERE account_id=?',id),all('SELECT skin FROM skins WHERE account_id=? AND paid=1',id),all('SELECT * FROM achievements WHERE account_id=?',id),all('SELECT * FROM weekly_claims WHERE account_id=? AND week=?',id,weekStart()),all('SELECT COUNT(*) AS n FROM mail WHERE account_id=? AND is_read=0',id)
+ const [professions,recipes,hotbar,skins,achievements,claims,unread,weeklyKeys]=await Promise.all([
+  all('SELECT profession FROM professions WHERE account_id=? AND paid=1',id),all('SELECT recipe FROM recipes WHERE account_id=?',id),all('SELECT * FROM hero_hotbar WHERE account_id=?',id),all('SELECT skin FROM skins WHERE account_id=? AND paid=1',id),all('SELECT * FROM achievements WHERE account_id=?',id),all('SELECT * FROM weekly_claims WHERE account_id=? AND week=?',id,weekStart()),all('SELECT COUNT(*) AS n FROM mail WHERE account_id=? AND is_read=0',id),all("SELECT * FROM mythic_keys WHERE account_id=? AND week=? AND status='available' ORDER BY level DESC,chapter DESC",id,weekStart()-7*86400000)
  ]);
- return {professions:professions.map(x=>x.profession),recipes:recipes.map(x=>x.recipe),hotbar,skins:skins.map(x=>x.skin),achievements,weeklyClaims:claims,unreadMail:unread[0].n,catalog:{professions:PROFESSIONS,recipes:RECIPES,items:ITEMS,skins:SKINS,achievements:ACHIEVEMENTS}};
+ return {professions:professions.map(x=>x.profession),recipes:recipes.map(x=>x.recipe),hotbar,skins:skins.map(x=>x.skin),achievements,weeklyClaims:claims,weeklyKeys,weeklySourceWeek:weekStart()-7*86400000,unreadMail:unread[0].n,catalog:{professions:PROFESSIONS,recipes:RECIPES,items:ITEMS,skins:SKINS,achievements:ACHIEVEMENTS}};
 }
 export async function adventureData(db,op,v){
  const stmt=(sql,...args)=>db.prepare(sql).bind(...args),one=(sql,...args)=>stmt(sql,...args).first(),all=async(sql,...args)=>(await stmt(sql,...args).all()).results,run=(sql,...args)=>stmt(sql,...args).run();
@@ -63,10 +63,10 @@ export async function adventureData(db,op,v){
   await db.batch([stmt(`UPDATE accounts SET gold=gold+COALESCE((SELECT SUM(gold) FROM mail WHERE account_id=? AND claimed=0${clause}),0) WHERE id=?`,v.id,...args,v.id),stmt(`UPDATE mail SET claimed=1,is_read=1 WHERE account_id=?${clause}`,v.id,...args)]);return {ok:true};
  }
  if(op==='weekly-claim'){
-  hero();const week=weekStart(),itemId=crypto.randomUUID();const key=await one("SELECT * FROM mythic_keys WHERE account_id=? AND hero=? AND week=? AND status='available' ORDER BY level DESC,chapter DESC LIMIT 1",v.id,v.hero,week);if(!key)fail('Este herói não possui uma chave válida nesta semana.');
+  hero();const claimWeek=weekStart(),week=claimWeek-7*86400000,itemId=crypto.randomUUID();const key=await one("SELECT * FROM mythic_keys WHERE account_id=? AND hero=? AND week=? AND status='available' ORDER BY level DESC,chapter DESC LIMIT 1",v.id,v.hero,week);if(!key)fail('Este herói não possui uma chave válida da semana anterior.');
   const pool=Object.values(ITEMS).filter(x=>x.hero===v.hero&&x.tier===key.chapter);const def=pool[Math.floor(Math.random()*pool.length)];
   const r=await db.batch([
-   stmt("INSERT OR IGNORE INTO weekly_claims(account_id,hero,week,level,item_id,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM mythic_keys WHERE account_id=? AND hero=? AND chapter=? AND week=? AND level=? AND status='available')",v.id,v.hero,week,key.level,itemId,now,v.id,v.hero,key.chapter,week,key.level),
+   stmt("INSERT OR IGNORE INTO weekly_claims(account_id,hero,week,level,item_id,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM mythic_keys WHERE account_id=? AND hero=? AND chapter=? AND week=? AND level=? AND status='available')",v.id,v.hero,claimWeek,key.level,itemId,now,v.id,v.hero,key.chapter,week,key.level),
    stmt('INSERT OR IGNORE INTO items(id,account_id,hero,catalog_id,slot,quality,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM weekly_claims WHERE item_id=?)',itemId,v.id,v.hero,def.id,def.slot,qualityBand(key.level),now,itemId)
   ]);if(!r[0].meta.changes)fail('Resgate já realizado ou chave indisponível.',409);return {ok:true,item:itemDefinition({catalog_id:def.id,quality:qualityBand(key.level)})};
  }
@@ -101,7 +101,7 @@ export async function adventureData(db,op,v){
    const r=await run('UPDATE clan_bank_tabs SET name=? WHERE clan_id=? AND tab=? AND EXISTS(SELECT 1 FROM clans WHERE id=? AND owner=?)',name,clan,v.tab,clan,v.id);if(!r.meta.changes)fail('Somente o líder pode renomear.',403);return {ok:true};
   }
   if(op==='bank-deposit'){
-   const r=await run(`UPDATE items SET location='bank',bank_clan=?,bank_tab=? WHERE id=? AND account_id=? AND ${owned} AND ${membership} AND EXISTS(SELECT 1 FROM clan_bank_tabs WHERE clan_id=? AND tab=? AND paid=1)`,clan,v.tab,v.item,v.id,v.id,clan,clan,v.tab);if(!r.meta.changes)fail('Item ou aba indisponível.',409);return {ok:true};
+   const r=await run(`UPDATE items SET location='bank',bank_clan=?,bank_tab=? WHERE id=? AND account_id=? AND ${owned} AND NOT EXISTS(SELECT 1 FROM hero_hotbar hb WHERE hb.account_id=items.account_id AND hb.hero=items.hero AND hb.catalog_id=items.catalog_id) AND ${membership} AND EXISTS(SELECT 1 FROM clan_bank_tabs WHERE clan_id=? AND tab=? AND paid=1)`,clan,v.tab,v.item,v.id,v.id,clan,clan,v.tab);if(!r.meta.changes)fail('Item ou aba indisponível.',409);return {ok:true};
   }
   if(op==='bank-withdraw'){
    hero();const r=await run(`UPDATE items SET location='inventory',account_id=?,hero=?,bank_clan=NULL,bank_tab=NULL WHERE id=? AND bank_clan=? AND location='bank' AND ${membership}`,v.id,v.hero,v.item,clan,v.id,clan);if(!r.meta.changes)fail('Item indisponível.',409);return {ok:true};

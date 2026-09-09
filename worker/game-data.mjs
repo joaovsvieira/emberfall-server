@@ -1,6 +1,6 @@
 import {adventureData,adventureProfile} from './adventure-data.mjs';
 import {expansionData} from './expansion-data.mjs';
-import {ITEMS,HERO_IDS,progression,attributes,killXp,BALANCE,weekStart,lootPool,itemDefinition,qualityBand,CHAPTER_DROPS} from '../server/catalog.mjs';
+import {ITEMS,HERO_IDS,CHAPTER_IDS,progression,attributes,heroPower,killXp,BALANCE,weekStart,lootPool,itemDefinition,qualityBand,CHAPTER_DROPS} from '../server/catalog.mjs';
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 export async function gameData(db,op,v){
  const adventure=await adventureData(db,op,v);if(adventure!==undefined)return adventure;
@@ -15,9 +15,9 @@ export async function gameData(db,op,v){
  const itemView=i=>({...i,definition:itemDefinition(i)});
  const page=Math.max(1,Math.min(10000,Number(v.page)||1)),offset=(page-1)*20;
  if(op==='game-profile'){
-  const [heroes,items,account]=await Promise.all([all('SELECT * FROM hero_progress WHERE account_id=?',v.id),all('SELECT i.*,EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=i.id AND l.status=?) AS listed FROM items i WHERE account_id=? AND location=\'inventory\' ORDER BY created_at DESC','active',v.id),one('SELECT gold,gems FROM accounts WHERE id=?',v.id)]);
+  const [heroes,items,account]=await Promise.all([all('SELECT * FROM hero_progress WHERE account_id=?',v.id),all('SELECT i.*,EXISTS(SELECT 1 FROM hero_hotbar hb WHERE hb.account_id=i.account_id AND hb.hero=i.hero AND hb.catalog_id=i.catalog_id) AS hotbar,EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=i.id AND l.status=?) AS listed FROM items i WHERE account_id=? AND location=\'inventory\' ORDER BY created_at DESC','active',v.id),one('SELECT gold,gems FROM accounts WHERE id=?',v.id)]);
   const keys=await all('SELECT * FROM mythic_keys WHERE account_id=? AND week=?',v.id,weekStart());const clan=await one('SELECT clan_id,role FROM clan_members WHERE account_id=?',v.id);
-  return {...await adventureProfile(db,v.id),gems:account?.gems??0,clan,gold:account?.gold??0,heroes:HERO_IDS.map(id=>{const xp=heroes.find(h=>h.hero===id)?.xp??0;const inventory=items.filter(i=>i.hero===id);return {id,skin:heroes.find(h=>h.hero===id)?.skin??'default',title:heroes.find(h=>h.hero===id)?.title??'',unlockedChapter:heroes.find(h=>h.hero===id)?.unlocked_chapter??1,keys:keys.filter(k=>k.hero===id),...progression(xp),attributes:attributes(id,xp,inventory.filter(i=>i.equipped)),inventory:inventory.map(itemView)};})};
+  return {...await adventureProfile(db,v.id),gems:account?.gems??0,clan,gold:account?.gold??0,heroes:HERO_IDS.map(id=>{const xp=heroes.find(h=>h.hero===id)?.xp??0;const inventory=items.filter(i=>i.hero===id);return {id,skin:heroes.find(h=>h.hero===id)?.skin??'default',title:heroes.find(h=>h.hero===id)?.title??'',unlockedChapter:heroes.find(h=>h.hero===id)?.unlocked_chapter??1,keys:keys.filter(k=>k.hero===id),...progression(xp),attributes:attributes(id,xp,inventory.filter(i=>i.equipped)),power:heroPower(attributes(id,xp,inventory.filter(i=>i.equipped))),inventory:inventory.map(itemView)};})};
  }
  if(op==='equip'){
   validHero(v.hero);if(typeof v.equip!=='boolean')fail('Ação inválida.');
@@ -31,7 +31,7 @@ export async function gameData(db,op,v){
   return {ok:true};
  }
  if(op==='rewards'||op==='settle'){
-  if(![1,2,3].includes(v.chapter)||!['solo','coop','pvp'].includes(v.mode)||!Array.isArray(v.players)||!v.players.length||v.players.length>4||!Array.isArray(v.kills)||v.kills.length>100)fail('Partida inválida.');
+  if(!CHAPTER_IDS.includes(v.chapter)||!['solo','coop','pvp'].includes(v.mode)||!Array.isArray(v.players)||!v.players.length||v.players.length>4||!Array.isArray(v.kills)||v.kills.length>100)fail('Partida inválida.');
   const now=v.finishedAt??Date.now(),queries=[];
   if(op==='settle')queries.push(stmt('INSERT OR IGNORE INTO matches(id,mode,chapter,duration_ms,outcome,week,created_at,mythic_level) VALUES(?,?,?,?,?,?,?,?)',v.round,v.mode,v.chapter,Math.max(0,Math.round(v.duration*1000)),v.outcome,weekStart(now),now,v.mythic?.level??0));
   for(const p of v.players){
@@ -49,7 +49,7 @@ export async function gameData(db,op,v){
     queries.push(stmt('INSERT OR IGNORE INTO reward_events(id,account_id,hero,xp,gold,created_at,round_id) VALUES(?,?,?,0,?,?,?)',`${v.round}:${p.id}:clear`,p.id,p.hero,gold,now,v.round));
     queries.push(stmt('INSERT OR IGNORE INTO items(id,account_id,hero,catalog_id,slot,equipped,created_at,quality) VALUES(?,?,?,?,?,0,?,?)',itemId,p.id,p.hero,def.id,def.slot,now,qualityBand(v.mythic?.level??0)));
     queries.push(stmt('INSERT OR IGNORE INTO completions(id,account_id,chapter,created_at) VALUES(?,?,?,?)',`${v.round}:${p.id}`,p.id,v.chapter,now));
-    queries.push(stmt('INSERT INTO hero_progress(account_id,hero,unlocked_chapter) VALUES(?,?,?) ON CONFLICT(account_id,hero) DO UPDATE SET unlocked_chapter=MAX(unlocked_chapter,excluded.unlocked_chapter)',p.id,p.hero,Math.min(3,v.chapter+1)));
+    queries.push(stmt('INSERT INTO hero_progress(account_id,hero,unlocked_chapter) VALUES(?,?,?) ON CONFLICT(account_id,hero) DO UPDATE SET unlocked_chapter=MAX(unlocked_chapter,excluded.unlocked_chapter)',p.id,p.hero,Math.min(CHAPTER_IDS.length,v.chapter+1)));
     if(!v.mythic)queries.push(stmt("INSERT INTO mythic_keys(account_id,hero,chapter,week) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM reward_events WHERE id=? AND applied=0) ON CONFLICT(account_id,hero,chapter,week) DO UPDATE SET level=2,status='available',run_id=NULL,resolved=0 WHERE mythic_keys.status='broken'",p.id,p.hero,v.chapter,weekStart(now),`${v.round}:${p.id}:clear`));
     for(const {suffix,catalog} of CHAPTER_DROPS)queries.push(stmt('INSERT OR IGNORE INTO items(id,account_id,hero,catalog_id,slot,created_at) VALUES(?,?,?,?,?,?)',`${v.round}:${p.id}:${suffix}`,p.id,p.hero,catalog,ITEMS[catalog].slot,now));
    }
@@ -107,7 +107,7 @@ export async function gameData(db,op,v){
  if(op==='market-list'){
   const q=String(v.q??'').toLowerCase().slice(0,100),ids=Object.values(ITEMS).filter(i=>(!v.slot||i.slot===v.slot)&&(!HERO_IDS.includes(v.hero)||!i.hero||i.hero===v.hero)&&i.name.toLowerCase().includes(q)).map(i=>i.id);
   if(!ids.length)return {listings:[],page,hasMore:false};
-  const rows=await all(`SELECT l.*,i.catalog_id,i.quality,a.display_name AS seller_name FROM listings l JOIN items i ON i.id=l.item_id JOIN accounts a ON a.id=l.seller WHERE l.status='active' AND i.catalog_id IN (${ids.map(()=>'?').join(',')}) AND l.seller${v.mine==='1'?'=':'<>'}? ORDER BY l.created_at DESC,l.id DESC LIMIT 21 OFFSET ?`,...ids,v.id,offset);
+  const rows=await all(`SELECT l.*,i.catalog_id,i.quality,a.display_name AS seller_name FROM listings l JOIN items i ON i.id=l.item_id JOIN accounts a ON a.id=l.seller WHERE l.status='active' AND i.catalog_id IN (SELECT value FROM json_each(?)) AND l.seller${v.mine==='1'?'=':'<>'}? ORDER BY l.created_at DESC,l.id DESC LIMIT 21 OFFSET ?`,JSON.stringify(ids),v.id,offset);
   return {listings:rows.slice(0,20).map(itemView),page,hasMore:rows.length>20};
  }
  if(op==='market-sell'){
@@ -115,7 +115,7 @@ export async function gameData(db,op,v){
   const quantity=v.quantity??1;if(!Number.isSafeInteger(quantity)||quantity<1||quantity>999)fail('Quantidade inválida (1–999).');
   const item=await one("SELECT * FROM items WHERE id=? AND account_id=? AND location='inventory'",v.item,v.id);if(!item)fail('Item indisponível.',409);
   if(quantity>1&&!ITEMS[item.catalog_id]?.stackable)fail('Este item não pode ser empilhado.');
-  const id=crypto.randomUUID(),free="account_id=? AND hero=? AND catalog_id=? AND quality=? AND equipped=0 AND location='inventory' AND NOT EXISTS(SELECT 1 FROM listing_items li JOIN listings l ON l.id=li.listing_id WHERE li.item_id=items.id AND l.status='active')",args=[v.id,item.hero,item.catalog_id,item.quality];
+  const id=crypto.randomUUID(),free="account_id=? AND hero=? AND catalog_id=? AND quality=? AND equipped=0 AND location='inventory' AND NOT EXISTS(SELECT 1 FROM hero_hotbar hb WHERE hb.account_id=items.account_id AND hb.hero=items.hero AND hb.catalog_id=items.catalog_id) AND NOT EXISTS(SELECT 1 FROM listing_items li JOIN listings l ON l.id=li.listing_id WHERE li.item_id=items.id AND l.status='active')",args=[v.id,item.hero,item.catalog_id,item.quality];
   const result=await db.batch([
    stmt(`INSERT INTO listings(id,item_id,seller,price,quantity,created_at) SELECT ?,id,?,?,?,? FROM items WHERE id=? AND ${free} AND (SELECT COUNT(*) FROM items WHERE ${free})>=?`,id,v.id,v.price,quantity,Date.now(),v.item,...args,...args,quantity),
    stmt(`INSERT INTO listing_items(listing_id,item_id) SELECT ?,id FROM items WHERE ${free} AND EXISTS(SELECT 1 FROM listings WHERE id=?) ORDER BY (id=?) DESC,created_at,id LIMIT ?`,id,...args,id,v.item,quantity)
@@ -143,7 +143,7 @@ export async function gameData(db,op,v){
   const mode=['solo','coop','pvp'].includes(v.mode)?v.mode:'coop',week=weekStart();
   if(mode==='pvp')return {week,nextReset:week+7*86400000,entries:await all("SELECT a.id,a.display_name AS name,SUM(p.kills) AS kills FROM match_players p JOIN matches m ON m.id=p.match_id JOIN accounts a ON a.id=p.account_id WHERE m.week=? AND m.mode='pvp' GROUP BY a.id HAVING SUM(p.kills)>0 ORDER BY kills DESC,a.username LIMIT 100",week)};
   const mythic=v.mythic==='1';
-  const chapter=[1,2,3].includes(Number(v.chapter))?Number(v.chapter):null;
+  const chapter=CHAPTER_IDS.includes(Number(v.chapter))?Number(v.chapter):null;
   // Team identity is the sorted set of account IDs, independent of host or order.
   const rows=await all(`WITH runs AS (SELECT m.*, (SELECT GROUP_CONCAT(account_id,',') FROM (SELECT account_id FROM match_players WHERE match_id=m.id ORDER BY account_id)) AS team,(SELECT GROUP_CONCAT(name,' + ') FROM (SELECT name FROM match_players WHERE match_id=m.id ORDER BY account_id)) AS name FROM matches m WHERE m.week=? AND m.mode=? AND m.outcome='won' AND m.mythic_level${mythic?'>0':'=0'} ${chapter?'AND m.chapter=?':''} AND NOT EXISTS(SELECT 1 FROM match_players p WHERE p.match_id=m.id AND p.outcome<>'won')), ranked AS (SELECT *,ROW_NUMBER() OVER(PARTITION BY team,chapter ORDER BY mythic_level DESC,duration_ms,created_at,id) AS rank FROM runs) SELECT * FROM ranked WHERE rank=1 ORDER BY mythic_level DESC,duration_ms,created_at,id LIMIT 100`,week,mode,...(chapter?[chapter]:[]));
   return {week,nextReset:week+7*86400000,entries:rows};

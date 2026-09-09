@@ -1,7 +1,7 @@
 import {Adventure} from './adventure.js';
 import {Expansion} from './expansion.js';
 import {Features} from './features.js';
-import {HEROES,CHAPTERS,type HeroId} from './engine.js';
+import {HEROES,CHAPTERS,CHAPTER_COUNT,ROMAN,type HeroId} from './engine.js';
 const $=(id:string)=>document.getElementById(id)!;
 const visible=(id:string,on:boolean)=>$(id).classList.toggle('hidden',!on);
 export class Hub {
@@ -15,7 +15,7 @@ export class Hub {
   $('settings-fullscreen').onclick=()=>$('fullscreen').click();$('settings-sound').onclick=()=>{$('sound').click();this.syncSound();};
   $('settings-logout').onclick=()=>void this.logout();
   $('account-trigger').onclick=e=>{e.stopPropagation();this.toggleAccountMenu();};$('account-settings').onclick=()=>{this.closeAccountMenu();this.setTab('settings');};$('account-logout').onclick=()=>{this.closeAccountMenu();void this.logout();};
-  $('map-1').onclick=()=>this.selectChapter(1);$('map-2').onclick=()=>this.selectChapter(2);$('map-3').onclick=()=>this.selectChapter(3);
+  for(let id=1;id<=CHAPTER_COUNT;id++)$('map-'+id).onclick=()=>this.selectChapter(id);
   $('start').onclick=()=>void this.playSolo();$('hero-to-map').onclick=()=>this.setTab('map');
   this.features=new Features(this);this.expansion=new Expansion(this);this.adventure=new Adventure(this);
   document.addEventListener('click',e=>{const target=e.target as HTMLElement;if(!target.closest('#account-menu'))this.closeAccountMenu();});
@@ -44,14 +44,14 @@ export class Hub {
  }
  selectChapter(id:number){this.chapter=id;this.renderMap();}
  renderMap(){if(!this.profile)return;const unlocked=this.heroProgress();
-  for(let id=1;id<=3;id++){const button=$('map-'+id);button.classList.toggle('locked',id>unlocked);button.classList.toggle('selected',id===this.chapter);button.setAttribute('aria-pressed',String(id===this.chapter));$('map-state-'+id).textContent=id>unlocked?'BLOQUEADO · CONCLUA O ANTERIOR':id<unlocked?'CONCLUÍDO · JOGAR NOVAMENTE':'DISPONÍVEL';}
-  const selected=CHAPTERS[this.chapter as 1|2|3];$('selected-map-name').textContent=selected.name;$('selected-map-copy').textContent=this.chapter>unlocked?'Conclua o capítulo anterior para liberar este destino.':`${selected.boss} espera por você. Escolha como entrar no mapa.`;
+  for(let id=1;id<=CHAPTER_COUNT;id++){const button=$('map-'+id);button.classList.toggle('locked',id>unlocked);button.classList.toggle('selected',id===this.chapter);button.setAttribute('aria-pressed',String(id===this.chapter));$('map-state-'+id).textContent=id>unlocked?'BLOQUEADO · CONCLUA O ANTERIOR':id<unlocked?'CONCLUÍDO · JOGAR NOVAMENTE':'DISPONÍVEL';}
+  const selected=CHAPTERS[this.chapter as keyof typeof CHAPTERS];$('selected-map-name').textContent=selected.name;$('selected-map-copy').textContent=this.chapter>unlocked?'Conclua o capítulo anterior para liberar este destino.':`${selected.boss} espera por você. Escolha como entrar no mapa.`;
   for(const id of ['start','multiplayer'])($(id) as HTMLButtonElement).disabled=this.chapter>unlocked||this.scene.net.connecting;($('pvp') as HTMLButtonElement).disabled=this.scene.net.connecting;
  }
  setAuthChrome(auth:boolean){$('shell').classList.toggle('auth-active',auth);}
  toggleAccountMenu(){const open=$('account-dropdown').classList.contains('hidden');visible('account-dropdown',open);$('account-trigger').setAttribute('aria-expanded',String(open));}
  closeAccountMenu(){visible('account-dropdown',false);$('account-trigger').setAttribute('aria-expanded','false');}
- renderFooter(){if(!this.profile)return;const progress=this.heroProgress();const chapter=CHAPTERS[progress as 1|2|3];$('footer-gems').textContent=String(this.profile.gems??0);$('footer-gold').textContent=String(this.profile.gold??0);$('footer-progress').textContent=`CAPÍTULO ${['','I','II','III'][progress]} · ${chapter.name.toUpperCase()}`;const hero=this.scene.selectedHero as HeroId;const meta=HEROES[hero];$('footer-hero-name').textContent=meta.name.toUpperCase();($('footer-hero-image') as HTMLImageElement).src=this.scene.textures.get(this.scene.heroKey(hero,'idle',this.profile.heroes.find((h:any)=>h.id===hero)?.skin)).getSourceImage().toDataURL();}
+ renderFooter(){if(!this.profile)return;const progress=this.heroProgress();const chapter=CHAPTERS[progress as keyof typeof CHAPTERS];$('footer-gems').textContent=String(this.profile.gems??0);$('footer-gold').textContent=String(this.profile.gold??0);$('footer-progress').textContent=`CAPÍTULO ${ROMAN[progress]} · ${chapter.name.toUpperCase()}`;const hero=this.scene.selectedHero as HeroId;const meta=HEROES[hero];$('footer-hero-name').textContent=meta.name.toUpperCase();($('footer-hero-image') as HTMLImageElement).src=this.scene.textures.get(this.scene.heroKey(hero,'idle',this.profile.heroes.find((h:any)=>h.id===hero)?.skin)).getSourceImage().toDataURL();}
  toggleWidget(which:'chat'|'friends'){const id=which==='chat'?'chat-widget':'friends-widget';const other=which==='chat'?'friends-widget':'chat-widget';const open=$(id).classList.contains('hidden');visible(other,false);visible(id,open);$('footer-chat').setAttribute('aria-expanded',String(which==='chat'&&open));$('footer-friends').setAttribute('aria-expanded',String(which==='friends'&&open));}
  closeWidgets(){visible('chat-widget',false);visible('friends-widget',false);$('footer-chat').setAttribute('aria-expanded','false');$('footer-friends').setAttribute('aria-expanded','false');}
  heroProgress(){return this.profile?.heroes.find((h:any)=>h.id===this.scene.selectedHero)?.unlockedChapter??1;}

@@ -1,10 +1,10 @@
-import {HERO_IDS,ITEMS,weekStart} from '../server/catalog.mjs';
+import {HERO_IDS,CHAPTER_IDS,ITEMS,weekStart} from '../server/catalog.mjs';
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 export async function expansionData(db,op,v){
  const stmt=(sql,...args)=>db.prepare(sql).bind(...args),one=(sql,...args)=>stmt(sql,...args).first(),all=async(sql,...args)=>(await stmt(sql,...args).all()).results,run=(sql,...args)=>stmt(sql,...args).run();
  const page=Math.max(1,Math.min(10000,Number(v.page)||1)),offset=(page-1)*20;
  if(op==='key-activate'){
-  if(!HERO_IDS.includes(v.hero)||![1,2,3].includes(v.chapter)||typeof v.round!=='string')fail('Chave inválida.');
+  if(!HERO_IDS.includes(v.hero)||!CHAPTER_IDS.includes(v.chapter)||typeof v.round!=='string')fail('Chave inválida.');
   const week=weekStart();await run("UPDATE mythic_keys SET status='active',run_id=?,resolved=0 WHERE account_id=? AND hero=? AND chapter=? AND week=? AND status='available'",v.round,v.id,v.hero,v.chapter,week);
   const key=await one("SELECT * FROM mythic_keys WHERE run_id=? AND account_id=? AND hero=? AND chapter=? AND week=? AND status='active'",v.round,v.id,v.hero,v.chapter,week);if(!key)fail('Chave indisponível, já usada ou expirada.',409);return key;
  }

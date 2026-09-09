@@ -17,7 +17,7 @@ test('menus and pause preserve typing, movement and mouse do not leak into a res
  keys.dispatchEvent(event('pointerup',{button:0}));assert.equal(controls.sample().attack,false);
  keys.dispatchEvent(event('keydown',{code:'KeyD'}));keys.dispatchEvent(event('keydown',{code:'Escape'}));assert.equal(pauses,1);
  controls.sync();keys.dispatchEvent(event('keydown',{code:'KeyQ'}));keys.dispatchEvent(event('keydown',{code:'Escape'}));assert.equal(pauses,1);
- active=true;controls.sync();assert.deepEqual(controls.sample(),{left:false,right:false,attack:false,actions:[]});
+ active=true;controls.sync();assert.deepEqual(controls.sample(),{left:false,right:false,down:false,attack:false,actions:[]});
  assert.equal(isEditing({closest:()=>({tagName:'INPUT'})}),true);
  const typed=event('keydown',{code:'KeyW'});Object.defineProperty(typed,'target',{value:{closest:()=>({})}});keys.dispatchEvent(typed);
  assert.equal(typed.defaultPrevented,false);assert.deepEqual(controls.sample().actions,[]);

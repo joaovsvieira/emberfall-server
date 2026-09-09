@@ -30,7 +30,7 @@ Cada unidade mantém um ID persistente próprio para evitar duplicações. Mater
 
 `items.location` assume inventory, bank ou consumed. Itens consumidos permanecem como registros para manter referências históricas e impedir que um retry os recrie. Itens equipados e anúncios ativos não aparecem na mochila, mas permanecem no perfil para os slots e validação de atributos. Cancelar anúncio ou desequipar devolve o item à visualização da mochila. Abas separam compatíveis/universais de outras classes.
 
-Atalhos 1–5 guardam um ID de catálogo em `hero_hotbar`. A seleção não duplica, move nem reserva unidades. Vender ou depositar todas as unidades deixa o atalho vazio até novas unidades chegarem. Segurar Shift e passar o mouse sobre equipamento exibe o tooltip de atributos.
+Atalhos 1–5 guardam um ID de catálogo em `hero_hotbar`. A seleção reserva toda a pilha livre desse tipo para os atalhos. As unidades continuam no perfil com hotbar=1, mas ficam fora da mochila e não podem ser anunciadas nem depositadas no clã. Remover o último vínculo devolve as unidades restantes à mochila; novos drops/crafts do tipo abastecem o mesmo atalho. Se o mesmo tipo ocupar vários slots, todos compartilham quantidade e cooldown. Segurar Shift e passar o mouse sobre equipamento exibe o tooltip de atributos.
 
 O cliente envia apenas o número do atalho ao Colyseus. A sala confere partida ativa, ausência de pausa, personagem vivo e vida faltante. `potion-use` é RPC interna, sem rota HTTP pública: consome exatamente uma unidade elegível e grava cooldown no mesmo batch. Mesmo herói em duas sessões não burla o cooldown. A aplicação da cura é limitada à vida máxima. Se a morte ou fim da partida ocorrer durante a confirmação de armazenamento, a poção já consumida não ressuscita nem altera um resultado final; o consumo permanece registrado.
 
@@ -40,9 +40,9 @@ O cliente envia apenas o número do atalho ao Colyseus. A sala confere partida a
 - Após quebra, uma NOVA conclusão normal concede +2 novamente. Repetir o processamento de uma conclusão antiga não concede chave. Conclusão normal nunca substitui uma chave disponível ou ativa.
 - Morte nos capítulos não encerra a partida: renascimento com vida cheia após três segundos no checkpoint e dois segundos de invulnerabilidade. Inimigos, abates e tempo não reiniciam. Isso também se aplica quando todos morrem.
 - Normal não tem limite de duração da jornada. Mítica continua com relógio real durante pausas e mortes; o prazo esgotado encerra a fase e quebra a chave. Abandono/encerramento da sala também resolve a chave como quebrada. PvP mantém morte terminal.
-- Resgate: uma vez por herói por semana, no botão da página Heróis. Usa a maior chave ATUALMENTE DISPONÍVEL do herói; desempate pelo capítulo mais alto. Chaves quebradas, ativas e de semanas anteriores não tornam o baú elegível. O jogador pode esperar para melhorar a chave antes de resgatar. O resgate não consome a chave.
+- Resgate: uma vez por herói por semana, no botão da página Heróis. Usa a maior chave válida da SEMANA IMEDIATAMENTE ANTERIOR do herói; desempate pelo capítulo mais alto. Chaves quebradas, ativas, da semana atual ou mais antigas não tornam o baú elegível. As chaves atuais preparam o resgate seguinte. O resgate não consome a chave.
 - Uma chave quebrada não oferece recompensa pendente. Recompensa já coletada não é retirada. Se outra chave válida existir, ela continua elegível.
-- Segunda-feira 00:00 de Brasília inicia nova semana, junto do ranking. Não existe acúmulo de baús antigos: este resgate é da semana corrente, não uma cópia da regra de recompensa da semana seguinte de WoW.
+- Segunda-feira 00:00 de Brasília inicia nova semana, junto do ranking. Não existe acúmulo de baús antigos: durante a semana W, só chaves de W−7 dias são elegíveis. weekly_claims.week identifica a semana do resgate e impede duplicação. Resgates realizados antes da versão 0.11 continuam respeitados.
 
 | Chave da conclusão / resgate | Qualidade | Multiplicador dos bônus do item |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ O cliente envia apenas o número do atalho ao Colyseus. A sala confere partida a
 | +15–19 | 2 | 1,30 |
 | +20 em diante | 3 | 1,50 |
 
-Bônus arredondados; catálogo base e limites finais de velocidade permanecem. Drop de conclusão usa a chave com que a partida começou, enquanto baú usa a chave válida no momento do resgate. Qualidade acompanha o item no mercado e baú do clã. Não altera retroativamente itens antigos.
+Bônus arredondados; catálogo base e limites finais de velocidade permanecem. Drop de conclusão usa a chave com que a partida começou, enquanto baú usa a melhor chave válida da semana anterior. Qualidade acompanha o item no mercado e baú do clã. Não altera retroativamente itens antigos.
 
 ## Correio e mercado
 

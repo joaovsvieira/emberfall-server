@@ -1,0 +1,1 @@
+UPDATE hero_progress SET unlocked_chapter=4 WHERE unlocked_chapter=3 AND EXISTS(SELECT 1 FROM match_players p JOIN matches m ON m.id=p.match_id WHERE p.account_id=hero_progress.account_id AND p.hero=hero_progress.hero AND m.chapter=3 AND m.mode IN ('solo','coop') AND p.outcome='won');

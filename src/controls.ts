@@ -1,7 +1,7 @@
 import type {Action, Input} from './engine.js';
 
 const bindings:Record<string,Action>={Space:'jump',KeyW:'jump',ArrowUp:'jump',ShiftLeft:'dash',ShiftRight:'dash',KeyK:'dash',KeyQ:'skill1',KeyU:'skill1',KeyE:'skill2',KeyI:'skill2'};
-const movement=new Set(['KeyA','KeyD','ArrowLeft','ArrowRight']);
+const movement=new Set(['KeyA','KeyD','ArrowLeft','ArrowRight','KeyS']);
 export function isEditing(target:any){return !!target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])');}
 
 // No global Phaser captures: menus and form fields keep native keyboard behavior.
@@ -29,6 +29,6 @@ export class GameControls {
  reset(){this.down.clear();this.actions=[];this.mouse=false;}
  sync(){const enabled=this.active();if(!enabled)this.reset();this.enabled=enabled;return enabled;}
  sample():Input{if(!this.active()){this.reset();return {};}
-   return {left:this.down.has('KeyA')||this.down.has('ArrowLeft'),right:this.down.has('KeyD')||this.down.has('ArrowRight'),attack:this.mouse,actions:[...new Set(this.actions.splice(0))]};
+   return {down:this.down.has('KeyS'),left:this.down.has('KeyA')||this.down.has('ArrowLeft'),right:this.down.has('KeyD')||this.down.has('ArrowRight'),attack:this.mouse,actions:[...new Set(this.actions.splice(0))]};
  }
 }

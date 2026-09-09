@@ -1,9 +1,17 @@
-export const HEROES = { kael: { name: 'Kael', role: 'Espadachim', attack: 'Combo de espada', skill1: 'Corte solar', skill2: 'Nova rúnica' }, lyra: { name: 'Lyra', role: 'Maga das brasas', attack: 'Bolas de fogo', skill1: 'Orbe incandescente', skill2: 'Explosão ígnea' }, aurel: { name: 'Aurel', role: 'Guardião da aurora', attack: 'Centelha dourada', skill1: 'Égide solar', skill2: 'Cura da aurora' }, sylva: { name: 'Sylva', role: 'Arqueira do bosque', attack: 'Flechas do bosque', skill1: 'Flecha perfurante', skill2: 'Chuva de flechas' } };
+export const HEROES = { kael: { name: 'Kael', role: 'Espadachim', attack: 'Combo de espada', skill1: 'Corte solar', skill2: 'Nova rúnica' }, lyra: { name: 'Lyra', role: 'Maga das brasas', attack: 'Bolas de fogo', skill1: 'Orbe incandescente', skill2: 'Explosão ígnea' }, aurel: { name: 'Aurel', role: 'Guardião da aurora', attack: 'Centelha dourada', skill1: 'Égide solar', skill2: 'Cura da aurora' }, sylva: { name: 'Sylva', role: 'Arqueira do bosque', attack: 'Flechas do bosque', skill1: 'Flecha perfurante', skill2: 'Chuva de flechas' }, nyxar: { name: 'Nyxar', role: 'Bruxo do eclipse', attack: 'Dardo do vazio', skill1: 'Ruptura abissal', skill2: 'Metamorfose demoníaca' } };
 export const LEVEL_WIDTH = 4800;
 export const platforms = [
     { x: 0, y: 615, w: 1120, ground: true }, { x: 1330, y: 615, w: 1010, ground: true }, { x: 2550, y: 615, w: 540, ground: true }, { x: 3280, y: 615, w: 1520, ground: true },
     { x: 530, y: 505, w: 240 }, { x: 930, y: 505, w: 180 }, { x: 1150, y: 432, w: 180 }, { x: 1390, y: 508, w: 190 }, { x: 1750, y: 475, w: 230 }, { x: 2120, y: 510, w: 190 }, { x: 2350, y: 420, w: 180 }, { x: 2580, y: 510, w: 180 }, { x: 2920, y: 505, w: 170 }, { x: 3080, y: 420, w: 180 }, { x: 3290, y: 505, w: 170 }
 ];
+function expeditionPlatforms(offset) {
+    return [
+        { x: 0, y: 615, w: 900, ground: true }, { x: 1220, y: 615, w: 990, ground: true }, { x: 2520, y: 615, w: 530, ground: true }, { x: 3350, y: 615, w: 1450, ground: true },
+        ...[[630, 490, 170], [970, 410, 160], [1260, 500, 160], [1570, 445, 165], [1920, 490, 160], [2280, 405, 160], [2550, 490, 155], [2850, 460, 155], [3130, 410, 155], [3400, 490, 170]].map(([x, y, w], i) => ({ x, y: y + (i % 2 ? offset : -offset), w }))
+    ];
+}
+export const CHAPTER_COUNT = 6;
+export const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 export const CHAPTERS = {
     1: { name: 'Ecos da Floresta', background: 'forest', terrain: 'terrain', boss: 'Guardião Ancestral', zones: ['LIMIAR DA FLORESTA', 'RUÍNAS DO VÉU', 'SANTUÁRIO DA CHAMA'], platforms },
     2: { name: 'Caldeira de Obsidiana', background: 'caldera', terrain: 'basalt', boss: 'Arauto da Caldeira', zones: ['PASSAGEM DAS CINZAS', 'FORJAS PARTIDAS', 'TRONO DE OBSIDIANA'], platforms: [
@@ -13,9 +21,13 @@ export const CHAPTERS = {
     3: { name: 'Cidadela da Geada', background: 'frosthold', terrain: 'froststone', boss: 'Soberano da Geada', zones: ['ESCADARIA DO INVERNO', 'GALERIA DOS ECOS', 'COROA DE GELO'], platforms: [
             { x: 0, y: 615, w: 880, ground: true }, { x: 1210, y: 615, w: 990, ground: true }, { x: 2510, y: 615, w: 520, ground: true }, { x: 3340, y: 615, w: 1460, ground: true },
             { x: 650, y: 495, w: 160 }, { x: 960, y: 420, w: 150 }, { x: 1260, y: 500, w: 160 }, { x: 1570, y: 435, w: 150 }, { x: 1900, y: 495, w: 155 }, { x: 2270, y: 410, w: 145 }, { x: 2540, y: 490, w: 150 }, { x: 2840, y: 465, w: 145 }, { x: 3120, y: 410, w: 145 }, { x: 3390, y: 490, w: 150 }
-        ] }
+        ] },
+    4: { name: 'Império das Dunas', background: 'desert', terrain: 'sandstone', boss: 'Akharet, Rei Sepulto', zones: ['PORTÕES DO EXÍLIO', 'NECRÓPOLE DO SOL', 'TRONO DAS AREIAS'], platforms: expeditionPlatforms(8) },
+    5: { name: 'Palácio Abissal', background: 'abyss', terrain: 'coralstone', boss: 'Nhal, Devorador das Marés', zones: ['JARDINS SUBMERSOS', 'GALERIA DAS MARÉS', 'CORAÇÃO DO ABISMO'], platforms: expeditionPlatforms(-8) },
+    6: { name: 'Coroa do Firmamento', background: 'sky', terrain: 'skystone', boss: 'Asterion, Titã da Tempestade', zones: ['ESCADARIA DAS NUVENS', 'BASTIÃO DOS VENTOS', 'ALTAR DO TROVÃO'], platforms: expeditionPlatforms(14) }
 };
-export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, skin: 'default', title: '', xp: 0, nextXp: 100, level: 1, potionUntil: 0, potions: [], x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, maxHp: 100, damage: 100, defense: 0, speed: 100, attackSpeed: 100, grounded: true, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0 }; }
+export const SPECIES = { 1: { bat: 'forest_dragon' }, 2: { goblin: 'lava_imp', bat: 'ashwing', wraith: 'ember_mage', boss: 'obsidian_guardian' }, 3: { goblin: 'frost_reaver', bat: 'ice_wyvern', wraith: 'frost_sorcerer', boss: 'ice_dragon' }, 4: { goblin: 'sand_scorpion', bat: 'sand_scarab', wraith: 'sand_priest', boss: 'sand_pharaoh' }, 5: { goblin: 'coral_guard', bat: 'abyss_ray', wraith: 'abyss_siren', boss: 'leviathan' }, 6: { goblin: 'storm_knight', bat: 'harpy', wraith: 'cloud_seer', boss: 'storm_titan' } };
+export function createPlayer(id = 'solo', name = 'Kael', x = 190, hero = 'kael') { return { id, name, hero, skin: 'default', title: '', xp: 0, nextXp: 100, level: 1, potionUntil: 0, potions: [], x, y: 615, vx: 0, vy: 0, dir: 1, hp: 100, maxHp: 100, damage: 100, defense: 0, speed: 100, attackSpeed: 100, grounded: true, dropping: false, jumps: 0, invincible: 0, dash: 0, dashCooldown: 0, attack: 0, attackCooldown: 0, skill1: 0, skill2: 0, coyote: .1, jumpBuffer: 0, hitCount: 0, bestCombo: 0, comboTime: 0, comboStep: 0, lastAttack: -10, checkpoint: 190, revive: 0, zone: 0, shield: 0, shieldTime: 0, demonTime: 0, power: 1000 }; }
 export class World {
     get level() { return CHAPTERS[this.chapter]; }
     get platforms() { return this.level.platforms; }
@@ -49,23 +61,37 @@ export class World {
         this.projectiles = [];
         this.pickups = [];
         this.enemyDamageScale = 1;
-        this.chapter = chapter === 3 ? 3 : chapter === 2 ? 2 : 1;
+        this.chapter = Object.hasOwn(CHAPTERS, chapter) ? chapter : 1;
         const specs = [['goblin', 760, 615], ['goblin', 1030, 615], ['bat', 1480, 492], ['goblin', 1630, 615], ['wraith', 1900, 490], ['goblin', 2190, 615], ['bat', 2690, 450], ['wraith', 2850, 505], ['goblin', 3460, 615], ['bat', 3640, 460], ['boss', 4390, 615]];
         if (this.chapter === 2)
             specs.splice(0, specs.length, ['goblin', 660, 615], ['bat', 840, 470], ['wraith', 1330, 495], ['goblin', 1550, 615], ['bat', 1710, 450], ['wraith', 1940, 480], ['goblin', 2130, 615], ['bat', 2300, 460], ['goblin', 2590, 615], ['wraith', 2810, 490], ['bat', 3010, 440], ['wraith', 3370, 470], ['goblin', 3500, 615], ['bat', 3670, 460], ['boss', 4390, 615]);
         if (this.chapter === 3)
             specs.splice(0, specs.length, ['goblin', 590, 615], ['bat', 780, 445], ['wraith', 1260, 480], ['goblin', 1430, 615], ['bat', 1590, 435], ['wraith', 1740, 475], ['goblin', 1930, 615], ['bat', 2110, 440], ['wraith', 2290, 455], ['goblin', 2570, 615], ['bat', 2680, 425], ['wraith', 2860, 470], ['bat', 3100, 430], ['wraith', 3360, 450], ['goblin', 3460, 615], ['goblin', 3600, 615], ['bat', 3750, 450], ['boss', 4390, 615]);
-        this.enemies = specs.map(([kind, x, y], id) => ({ id, kind, species: this.chapter === 2 ? ({ goblin: 'lava_imp', bat: 'ashwing', wraith: 'ember_mage', boss: 'obsidian_guardian' }[kind] ?? kind) : this.chapter === 3 ? ({ goblin: 'frost_reaver', bat: 'ice_wyvern', wraith: 'frost_sorcerer', boss: 'ice_dragon' }[kind] ?? kind) : kind === 'bat' ? 'forest_dragon' : kind, x, y, home: x, baseY: y, hp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, maxHp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, dir: -1, timer: 1.1 + id * .13, windup: 0, flash: 0, knock: 0, phase: 0, attackAnim: 0, active: false, dead: false, attackX: x }));
+        if (this.chapter >= 4) {
+            specs.length = 0;
+            for (const g of this.platforms.filter(b => b.ground && b.x < 3800)) {
+                const count = this.chapter + 1;
+                for (let i = 0; i < count; i++) {
+                    const x = g.x + Math.max(170, g.w * (i + 1) / (count + 1));
+                    if (x > 3800)
+                        continue;
+                    const kind = i % 3 === 0 ? 'goblin' : i % 3 === 1 ? 'bat' : 'wraith';
+                    specs.push([kind, x, kind === 'goblin' ? 615 : 465 - (i % 2) * 25]);
+                }
+            }
+            specs.push(['wraith', 2300, 460], ['bat', 3110, 440], ['boss', 4390, 615]);
+        }
+        this.enemies = specs.map(([kind, x, y], id) => ({ id, kind, species: SPECIES[this.chapter][kind] ?? kind, x, y, home: x, baseY: y, hp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, maxHp: kind === 'boss' ? 480 : kind === 'bat' ? 34 : kind === 'wraith' ? 65 : 52, dir: -1, timer: 1.1 + id * .13, windup: 0, flash: 0, knock: 0, phase: 0, attackAnim: 0, active: false, dead: false, attackX: x }));
         if (this.chapter > 1)
             for (const e of this.enemies) {
-                e.hp = e.maxHp = Math.round(e.maxHp * (this.chapter === 3 ? (e.kind === 'boss' ? 2.15 : 1.75) : (e.kind === 'boss' ? 1.5 : 1.35)));
-                e.timer *= this.chapter === 3 ? .65 : .8;
+                e.hp = e.maxHp = Math.round(e.maxHp * (e.kind === 'boss' ? [1, 1, 1.5, 2.15, 2.9, 3.85, 5][this.chapter] : [1, 1, 1.35, 1.75, 2.25, 2.85, 3.6][this.chapter]));
+                e.timer *= this.chapter === 2 ? .8 : this.chapter === 3 ? .65 : Math.max(.4, .7 - (this.chapter - 3) * .08);
             }
     }
     emit(type, extra = {}) { this.events.push({ type, playerId: this.player.id, ...extra }); }
     start() { this.status = 'playing'; this.emit('toast', { text: 'A / D para mover · W / ↑ / Espaço para pulo duplo · clique esquerdo para atacar' }); }
     damagePlayer(amount, sourceX) { const p = this.player; if (p.invincible > 0 || this.status !== 'playing')
-        return; amount = Math.max(1, Math.round(amount * (this.mode === 'pvp' ? 1 : this.enemyDamageScale) * 100 / (100 + p.defense))); const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
+        return; amount = Math.max(1, Math.round(amount * (this.mode === 'pvp' ? 1 : this.enemyDamageScale * (1 + Math.max(0, this.chapter - 3) * .2)) * 100 / (100 + p.defense))); const absorbed = Math.min(p.shield, amount); p.shield -= absorbed; amount -= absorbed; if (absorbed)
         this.emit('blocked', { x: p.x, y: p.y - 85, value: absorbed }); p.hp = Math.max(0, p.hp - amount); p.invincible = this.mode === 'pvp' ? .22 : 1.15; p.vx = (p.x >= sourceX ? 1 : -1) * 240; this.hitCount = 0; this.emit('hurt', { x: p.x, y: p.y - 65, value: amount }); if (p.hp <= 0) {
         p.vx = 0;
         p.vy = 0;
@@ -115,6 +141,41 @@ export class World {
             p.dashCooldown = .85;
             p.invincible = Math.max(p.invincible, .25);
             this.emit('dash', { x: p.x, y: p.y - 40, dir: p.dir });
+        }
+        if (p.hero === 'nyxar') {
+            if (action === 'skill2' && p.skill2 <= 0) {
+                p.skill2 = 40;
+                p.demonTime = 15;
+                p.attack = .4;
+                this.emit('metamorphosis', { x: p.x, y: p.y - 60 });
+                return;
+            }
+            if (action === 'attack' && p.attackCooldown <= 0) {
+                p.attack = .3;
+                p.attackCooldown = p.demonTime > 0 ? .4 : .45;
+                if (p.demonTime > 0) {
+                    this.emit('voidClaw', { x: p.x, y: p.y - 58, dir: p.dir });
+                    for (const e of this.enemies) {
+                        const dx = e.x - p.x;
+                        if (!e.dead && dx * p.dir > -30 && Math.abs(dx) < (e.kind === 'boss' ? 180 : 150) && Math.abs(e.y - p.y) < 120)
+                            this.hitEnemy(e, 36, p.dir);
+                    }
+                    for (const t of this.players) {
+                        const dx = t.x - p.x;
+                        if (dx * p.dir > -30 && Math.abs(dx) < 150 && Math.abs(t.y - p.y) < 120)
+                            this.hitOpponent(t, 18);
+                    }
+                }
+                else
+                    this.castBolt('void', 23, 12, 660, 1.15);
+                return;
+            }
+            if (action === 'skill1' && p.skill1 <= 0) {
+                p.skill1 = 8;
+                p.attack = .4;
+                this.castBolt('rift', 54, 25, 780, 1.1, true);
+                return;
+            }
         }
         if (p.hero === 'aurel') {
             if (action === 'attack' && p.attackCooldown <= 0) {
@@ -223,7 +284,7 @@ export class World {
                     this.hitOpponent(target, p.hero === 'lyra' ? 28 : 32);
         }
     }
-    castBolt(kind, damage, pvpDamage, speed, life, pierce = false) { const p = this.player; this.projectiles.push({ x: p.x + p.dir * 42, y: p.y - 62, vx: p.dir * speed, vy: 0, life, friendly: true, owner: p.id, kind, damage, pvpDamage, pierce, hits: new Set() }); this.emit(kind === 'light' ? 'lightBolt' : 'arrow', { x: p.x + p.dir * 42, y: p.y - 62, dir: p.dir }); }
+    castBolt(kind, damage, pvpDamage, speed, life, pierce = false) { const p = this.player; this.projectiles.push({ x: p.x + p.dir * 42, y: p.y - 62, vx: p.dir * speed, vy: 0, life, friendly: true, owner: p.id, kind, damage, pvpDamage, pierce, hits: new Set() }); this.emit(kind === 'void' || kind === 'rift' ? 'voidBolt' : kind === 'light' ? 'lightBolt' : 'arrow', { x: p.x + p.dir * 42, y: p.y - 62, dir: p.dir }); }
     castFire(damage, pvpDamage, charged = false) { const p = this.player; this.projectiles.push({ x: p.x + p.dir * 42, y: p.y - 62, vx: p.dir * (charged ? 720 : 640), vy: 0, life: charged ? 1.2 : 1, friendly: true, owner: p.id, kind: charged ? 'inferno' : 'fireball', damage, pvpDamage, pierce: charged, hits: new Set() }); this.emit('fireball', { x: p.x + p.dir * 42, y: p.y - 62, dir: p.dir, value: charged ? 2 : 1 }); }
     tryJump() { const p = this.player; if (p.jumpBuffer > 0 && (p.grounded || p.coyote > 0 || p.jumps < 2)) {
         if (!p.grounded && p.coyote <= 0 && p.jumps === 0)
@@ -269,6 +330,8 @@ export class World {
                     p.y = 430;
                     p.vx = p.vy = 0;
                     p.jumps = 0;
+                    p.dropping = false;
+                    p.demonTime = 0;
                     p.jumpBuffer = 0;
                     p.attack = 0;
                     p.dash = 0;
@@ -283,10 +346,17 @@ export class World {
         const p = this.player;
         if (p.hp <= 0)
             return;
-        for (const key of ['invincible', 'dash', 'dashCooldown', 'attack', 'attackCooldown', 'skill1', 'skill2', 'jumpBuffer', 'coyote', 'shieldTime'])
+        for (const key of ['invincible', 'dash', 'dashCooldown', 'attack', 'attackCooldown', 'skill1', 'skill2', 'jumpBuffer', 'coyote', 'shieldTime', 'demonTime'])
             p[key] = Math.max(0, p[key] - dt * (key === 'attackCooldown' ? p.attackSpeed / 100 : 1));
         if (p.shieldTime <= 0)
             p.shield = 0;
+        if (input.down && p.grounded && this.platforms.some(b => !b.ground && Math.abs(p.y - b.y) < 3 && p.x + 17 > b.x && p.x - 17 < b.x + b.w)) {
+            p.dropping = true;
+            p.grounded = false;
+            p.coyote = 0;
+            p.jumpBuffer = 0;
+            p.vy = Math.max(90, p.vy);
+        }
         this.comboTime -= dt;
         if (this.comboTime <= 0)
             this.hitCount = 0;
@@ -312,10 +382,11 @@ export class World {
         p.grounded = false;
         if (p.vy >= 0)
             for (const b of this.platforms) {
-                if (p.x + 17 > b.x && p.x - 17 < b.x + b.w && oldY <= b.y + 2 && p.y >= b.y) {
+                if ((!p.dropping || b.ground) && p.x + 17 > b.x && p.x - 17 < b.x + b.w && oldY <= b.y + 2 && p.y >= b.y) {
                     p.y = b.y;
                     p.vy = 0;
                     p.grounded = true;
+                    p.dropping = false;
                     p.jumps = 0;
                     p.coyote = .1;
                     break;
@@ -325,12 +396,13 @@ export class World {
             this.tryJump();
         if (p.y > 850) {
             p.invincible = 0;
-            this.damagePlayer(this.chapter === 3 ? 30 : this.chapter === 2 ? 24 : 16, p.x);
+            this.damagePlayer(this.chapter >= 3 ? 30 : this.chapter === 2 ? 24 : 16, p.x);
             p.x = this.checkpoint;
             p.y = p.hp > 0 ? 430 : 615;
             p.vy = 0;
             p.vx = 0;
             p.jumps = 0;
+            p.dropping = false;
             this.emit('toast', { text: 'Cuidado com os abismos. Use o pulo duplo e o dash.' });
         }
         if (this.mode === 'pvp') {
@@ -374,7 +446,7 @@ export class World {
             if (!e.active)
                 continue;
             e.dir = dx >= 0 ? 1 : -1;
-            e.timer -= dt * (this.chapter === 3 ? 1.45 : this.chapter === 2 ? 1.25 : 1);
+            e.timer -= dt * (this.chapter >= 3 ? 1.45 : this.chapter === 2 ? 1.25 : 1);
             if (e.windup > 0) {
                 e.windup -= dt;
                 if (e.windup <= 0) {
@@ -385,15 +457,15 @@ export class World {
                             for (const member of this.players) {
                                 if (member.hp > 0 && Math.abs(member.x - e.attackX) < 145 && member.y > 470) {
                                     this.player = member;
-                                    this.damagePlayer(this.chapter === 3 ? 38 : this.chapter === 2 ? 32 : 24, e.x);
+                                    this.damagePlayer(this.chapter >= 3 ? 38 : this.chapter === 2 ? 32 : 24, e.x);
                                 }
                             }
                             this.player = p;
                             for (const dir of [-1, 1])
-                                this.projectiles.push({ x: e.attackX, y: 594, vx: dir * (this.chapter === 3 ? 455 : this.chapter === 2 ? 390 : 310), vy: 0, life: 2.1, friendly: false, hits: new Set() });
+                                this.projectiles.push({ x: e.attackX, y: 594, vx: dir * (this.chapter >= 3 ? 455 : this.chapter === 2 ? 390 : 310), vy: 0, life: 2.1, friendly: false, hits: new Set() });
                         }
                         else {
-                            for (let n = this.chapter === 3 ? -3 : this.chapter === 2 ? -2 : -1; n <= (this.chapter === 3 ? 3 : this.chapter === 2 ? 2 : 1); n++) {
+                            for (let n = this.chapter >= 3 ? -3 : this.chapter === 2 ? -2 : -1; n <= (this.chapter >= 3 ? 3 : this.chapter === 2 ? 2 : 1); n++) {
                                 const angle = Math.atan2(p.y - 55 - (e.y - 140), p.x - e.x) + n * .26;
                                 this.projectiles.push({ x: e.x, y: e.y - 140, vx: Math.cos(angle) * 310, vy: Math.sin(angle) * 310, life: 2.8, friendly: false, hits: new Set() });
                             }
@@ -404,7 +476,7 @@ export class World {
                     }
                     else {
                         if (Math.abs(dx) < 105 && dy < 110)
-                            this.damagePlayer((e.kind === 'bat' ? 9 : 13) * (this.chapter === 3 ? 1.55 : this.chapter === 2 ? 1.3 : 1), e.x);
+                            this.damagePlayer((e.kind === 'bat' ? 9 : 13) * (this.chapter >= 3 ? 1.55 : this.chapter === 2 ? 1.3 : 1), e.x);
                         this.emit('enemySwipe', { x: e.x + e.dir * 35, y: e.y - 35, dir: e.dir });
                         e.timer = 1.25;
                     }
@@ -412,7 +484,7 @@ export class World {
             }
             else if (e.kind === 'boss') {
                 if (e.timer <= 0) {
-                    e.windup = this.chapter === 3 ? .6 : this.chapter === 2 ? .7 : .85;
+                    e.windup = this.chapter >= 3 ? .6 : this.chapter === 2 ? .7 : .85;
                     e.attackX = p.x;
                     this.emit('warning', { x: e.attackX, y: 615, value: .85, kind: e.phase % 2 === 0 ? 'slam' : 'shot' });
                 }
@@ -434,10 +506,10 @@ export class World {
                 if (e.kind === 'bat') {
                     e.y += (Math.max(380, p.y - 40) - e.y) * dt * 1.5;
                     if (Math.abs(dx) > 60)
-                        e.x += e.dir * (this.chapter === 3 ? 165 : this.chapter === 2 ? 140 : 115) * dt;
+                        e.x += e.dir * (this.chapter >= 3 ? 165 : this.chapter === 2 ? 140 : 115) * dt;
                 }
                 else if (Math.abs(dx) > 64) {
-                    const next = e.x + e.dir * (this.chapter === 3 ? 120 : this.chapter === 2 ? 100 : 78) * dt;
+                    const next = e.x + e.dir * (this.chapter >= 3 ? 120 : this.chapter === 2 ? 100 : 78) * dt;
                     const ground = this.platforms.find(b => b.ground && next > b.x + 28 && next < b.x + b.w - 28);
                     if (ground)
                         e.x = next;
@@ -485,7 +557,7 @@ export class World {
                 for (const p of this.players) {
                     if (p.hp > 0 && Math.abs(s.x - p.x) < 25 && Math.abs(s.y - (p.y - 45)) < 48) {
                         this.player = p;
-                        this.damagePlayer(this.chapter === 3 ? 20 : this.chapter === 2 ? 16 : 12, s.x);
+                        this.damagePlayer(this.chapter >= 3 ? 20 : this.chapter === 2 ? 16 : 12, s.x);
                         s.life = 0;
                         break;
                     }
@@ -493,8 +565,8 @@ export class World {
         }
         this.projectiles = this.projectiles.filter(s => s.life > 0);
     }
-    get hazards() { return this.mode === 'pvp' ? [] : this.chapter === 3 ? [{ x: 1480, offset: 0 }, { x: 1980, offset: 1 }, { x: 2690, offset: 2 }, { x: 3520, offset: 3 }, { x: 4160, offset: 1.5 }, { x: 4550, offset: 3.5 }] : this.chapter === 2 ? [{ x: 1810, offset: 0 }, { x: 2720, offset: 1.7 }, { x: 3520, offset: 3.2 }] : []; }
-    hazardState(offset) { const cycle = this.chapter === 3 ? 4.2 : 5, phase = (this.time + offset) % cycle; return phase >= cycle - .8 ? 'active' : phase >= cycle - 1.8 ? 'warning' : 'idle'; }
+    get hazards() { return this.mode === 'pvp' ? [] : this.chapter >= 3 ? [{ x: 1480, offset: 0 }, { x: 1980, offset: 1 }, { x: 2690, offset: 2 }, { x: 3520, offset: 3 }, { x: 4160, offset: 1.5 }, { x: 4550, offset: 3.5 }] : this.chapter === 2 ? [{ x: 1810, offset: 0 }, { x: 2720, offset: 1.7 }, { x: 3520, offset: 3.2 }] : []; }
+    hazardState(offset) { const cycle = this.chapter >= 3 ? 4.2 : 5, phase = (this.time + offset) % cycle; return phase >= cycle - .8 ? 'active' : phase >= cycle - 1.8 ? 'warning' : 'idle'; }
     stepHazards() { if (this.predicting || this.status !== 'playing')
         return; for (const h of this.hazards) {
         if (this.hazardState(h.offset) !== 'active')
@@ -502,7 +574,7 @@ export class World {
         for (const p of this.players) {
             if (p.hp > 0 && Math.abs(p.x - h.x) < 55 && p.y > 480) {
                 this.player = p;
-                this.damagePlayer(this.chapter === 3 ? 24 : 18, h.x);
+                this.damagePlayer(this.chapter >= 3 ? 24 : 18, h.x);
             }
         }
     } }

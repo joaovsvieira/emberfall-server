@@ -51,3 +51,6 @@
 @media(max-width:650px){#panel-heroes{grid-template-columns:minmax(0,1fr);grid-template-areas:"heading" "stage" "hotbar" "details" "progression" "roster" "inventory"}}
 
 .stack-count{display:inline-block;padding:3px 7px;border:1px solid #d6b87577;background:#152e36;border-radius:3px;color:#f5dba1;font-size:13px}#craft-item.crafting{position:relative;overflow:hidden;isolation:isolate;opacity:1;cursor:wait;justify-content:center}#craft-item .craft-fill{position:absolute;inset:0;background:#90ad6b66;transform:scaleX(0);transform-origin:left;animation:craft-progress 1.5s linear forwards;z-index:-1}#craft-item .craft-label{position:relative;font-size:12px}@keyframes craft-progress{to{transform:scaleX(1)}}@media(prefers-reduced-motion:reduce){#craft-item .craft-fill{animation-timing-function:steps(3)}}
+
+/* Expanded roster and campaign keep explicit hero layout areas. */
+.hero-power{display:block;color:#ead39a;letter-spacing:.1em;margin:0 0 14px;font-size:18px}.member-power{display:block;color:#ead39a;margin-top:8px}.hero-picker{grid-template-columns:repeat(5,minmax(0,1fr))}.chapter-route{grid-template-columns:repeat(3,minmax(0,1fr))}#panel-map .chapter-card{min-height:210px} @media(max-width:900px){.hero-picker{grid-template-columns:repeat(3,minmax(0,1fr))}}

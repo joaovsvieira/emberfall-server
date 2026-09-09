@@ -1,3 +1,5 @@
+Atualização 0.11: seis capítulos, Nyxar, poder do herói, S desce plataformas, consumíveis reservados nos atalhos e baú da semana anterior. Leia docs/ECLIPSE_UPDATE.md (prevalece sobre notas históricas). Migração 0007 libera IV somente para heróis com vitória PvE/solo histórica em III.
+
 Atualização 0.10.1: correção do layout Heróis, pilhas de materiais/poções, venda por quantidade (preço total do lote), progresso e som no craft. Migração 0006. Consulte a seção final de docs/ADVENTURE_SYSTEMS.md.
 
 # Emberfall — estado e continuidade
@@ -14,10 +16,10 @@ Emberfall — Ecos da Floresta é um jogo original de plataforma 2D e combate in
 
 - Cadastro com usuário de 3–18 letras/números/_ e senha de 8–128 caracteres. Sessão HttpOnly por 30 dias; F5 restaura via /api/me. Não há recuperação de senha por e-mail nesta versão.
 - Menu desktop: Loja, Profissões, Heróis, Conquistas, Histórico, Mapa, Mercado, Ranking, Clã, Email, Configurações. Login/F5 sempre abre no mapa.
-- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado) e Sylva (arqueira verde). Preferência do herói fica na conta. XP/nível, capítulos, chaves, equipamentos e inventário são individuais por herói; gold é da conta. Habilidades continuam disponíveis. Itens de outra classe ficam no herói que recebeu e só podem ser vendidos, sem transferência direta; podem circular por mercado ou baú compartilhado do clã.
-- Mapa tem floresta, caldeira e cidadela de gelo. Só capítulo I inicia liberado. Vitória PvE/solo libera o seguinte; PvP não libera. Desbloqueio é por herói. Criador e convidados PvE precisam liberar o mapa; convidados PvP podem jogar bloqueados. Rodapé usa progresso do herói.
+- Todos possuem Kael (espada), Lyra (fogo), Aurel (suporte dourado), Sylva (arqueira verde) e Nyxar (bruxo com transformação demoníaca de 15 segundos). Preferência do herói fica na conta. XP/nível, capítulos, chaves, equipamentos e inventário são individuais por herói; gold é da conta. Poder do herói é calculado no servidor e aparece em Heróis e no lobby. Itens de outra classe ficam no herói que recebeu e só podem ser vendidos, sem transferência direta; podem circular por mercado ou baú compartilhado do clã.
+- Mapa tem seis capítulos: floresta, caldeira, cidadela de gelo, Império das Dunas, Palácio Abissal e Coroa do Firmamento. Só capítulo I inicia liberado. Vitória PvE/solo libera o seguinte; PvP não libera. Desbloqueio é por herói. Criador e convidados PvE precisam liberar o mapa; convidados PvP podem jogar bloqueados. Migração 0007 libera IV apenas para heróis com vitória histórica em III; VI encerra a campanha. Rodapé usa progresso do herói.
 - Solo agora usa uma sala autoritativa para 1 pessoa, abre lobby explícito com chave opcional, pronto e iniciar. PvE começa com 2–4, todos prontos; PvP com 2. Cada mapa tem arena PvP sem inimigos ou perigos ambientais.
-- A/D/setas movem, W/cima/espaço pulam duas vezes, clique esquerdo ataca, Shift/K esquiva, Q/U e E/I são habilidades. Teclas só afetam a partida ativa. Escape pausa, menu oferece retorno.
+- A/D/setas movem, W/cima/espaço pulam duas vezes, S desce pelas plataformas até o chão, clique esquerdo ataca, Shift/K esquiva, Q/U e E/I são habilidades. Atalhos 1–5 reservam consumíveis fora da mochila; removê-los devolve o saldo. Teclas só afetam a partida ativa. Escape pausa, menu oferece retorno.
 - Loja oferece 10 cristais por R$ 0,01 via Mercado Pago/Pix, aguardando configuração do vendedor. Mercado usa gold e registra compras/vendas. Configurações: tela cheia, som, ID da conta e desconectar. Recebimento real e aceitação de R$ 0,01 dependem de credenciais e validação do vendedor.
 
 ## Arquitetura e publicação
@@ -34,6 +36,12 @@ Emberfall — Ecos da Floresta é um jogo original de plataforma 2D e combate in
 - Salas e partidas são temporárias; contas/capítulos ficam no D1 e sobrevivem aos deploys. Desbloqueios só são gravados por vitória simulada no servidor; uma falha de gravação aparece no resultado com opção de tentar novamente.
 
 ## Verificação e trabalho
+
+Retomada de 09/09/2026: checkout recuperado em `/workspace/sites/emberfall`, limpo no commit `d60fdc6e259e17c68922ee9a8ce73b7313ccbd30` (13:15:24 America/Sao_Paulo). Esse commit já inclui código, cinco artes, build, testes e documentação 0.11; não reconstruir a atualização a partir do histórico do chat. Sites tem o snapshot correspondente na versão 16. O GitHub encontrado antes do envio estava em `f889ea295756d4c9aa4a8864e1534eef5d14f222`, com arquivos iguais ao snapshot local 0.10.1, exceto pelo manifesto de identidade exclusivo do Sites.
+
+Validação nesta retomada: `npm run build` concluído sem alterar os arquivos compilados; `npm test` passou em todos os 75 testes, sem falhas ou skips. Testes usam banco SQLite temporário e WebSockets locais, sem pagamentos reais nem mutações em contas de produção. Não houve teste visual em navegador. Esta continuação corrige notas de estado desatualizadas no README e neste documento.
+
+Publicação: confirmar Worker/D1 da versão 16 antes de mover a `main` do GitHub, pois essa branch aciona o Render. Enviar somente diferenças sobre a árvore remota conferida, preservar arquivos remotos não relacionados e não usar force push. A integração pelo GitHub pode produzir um SHA diferente do commit do Sites: registrar o commit de origem na mensagem e conferir os hashes dos arquivos. O sucesso do envio ao GitHub não equivale, por si só, ao sucesso do deploy no Render; verificar separadamente.
 
 Testes cobrem física, combate, 4 clientes WebSocket, PvP, progresso, contas, sessões revogadas, isolamento entre usuários, banco reaberto e bloqueio de mapas. Os testes antigos injetam identidade fictícia somente por dependência em tests/helpers/server.mjs; o servidor publicado sempre usa Accounts.
 
@@ -55,4 +63,4 @@ Mítica+: host ativa a própria chave, por capítulo/herói, +2 inicial, uma con
 
 ## Continuidade 0.10
 
-Implementação completa em docs/ADVENTURE_SYSTEMS.md. Dez tabelas novas via 0005. Preservar semântica de recibos atômicos e propriedade do herói. Profissões custam 100 GOLD. Apenas receita de poção de cura menor inicialmente: duas ervas, cura 20%, cooldown 30s, atalhos 1–5. Skins não alteram atributos. Baú semanal usa chave válida atual e não recompensa chave quebrada. Consulte limitações de escala documentadas antes de ampliar inventários, filas ou instâncias.
+Implementação completa em docs/ADVENTURE_SYSTEMS.md. Dez tabelas novas via 0005. Preservar semântica de recibos atômicos e propriedade do herói. Profissões custam 100 GOLD. Apenas receita de poção de cura menor inicialmente: duas ervas, cura 20%, cooldown 30s, atalhos 1–5. Skins não alteram atributos. Baú semanal usa a melhor chave válida da semana anterior e não recompensa chave quebrada. Consulte limitações de escala documentadas antes de ampliar inventários, filas ou instâncias.

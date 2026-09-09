@@ -60,6 +60,7 @@ export class ForestScene extends Phaser.Scene {
  }
  sizeActor(actor:any,key:string,height:number){actor.setTexture(key);const source=this.textures.get(key).getSourceImage();actor.setDisplaySize(height*source.width/source.height,height);}
  heroKey(hero:HeroId,key:string,skin='default'){return hero==='kael'?(skin==='kael_astral'?`kael_astral-${key}`:key):`${hero}-${key}`;}
+ craftSound(done=false){audioUnlock();if(done){tone(660,.18,'sine',.03);setTimeout(()=>tone(880,.3,'sine',.025),130);}else{tone(240,.35,'triangle',.022,180);}}
  menuSound(){audioUnlock();tone(660,.075,'sine',.018,120);}
  rebuildLevel(){
    for(const a of this.levelArt)a.destroy();this.levelArt=[];for(const a of this.actors.values()){this.tweens.killTweensOf(a);a.destroy();}this.actors.clear();

@@ -6,6 +6,7 @@ const bonuses = (d) => Object.entries(d?.attributes ?? {}).map(([k, v]) => `+${v
 export class Adventure {
     constructor(hub) {
         this.hub = hub;
+        this.crafting = false;
         this.profession = 'alchemy';
         this.recipe = 'healing_potion';
         this.craftHero = '';
@@ -99,7 +100,41 @@ export class Adventure {
             $('profession-unlock').onclick = () => this.dialog('Aprender profissão?', `<p>${esc(professions[this.profession])} custa 100 gold da conta. As receitas são aprendidas separadamente.</p>`, 'APRENDER', () => this.request('professions/unlock', { profession: this.profession }));
         if (r) {
             $('craft-hero').onchange = () => { this.craftHero = $('craft-hero').value; this.professions(); };
-            $('craft-item').onclick = () => void this.mutate('craft', { hero: this.craftHero, recipe: r.id }, $('craft-item'));
+            $('craft-item').onclick = () => void this.craft(r.id);
+            if (this.crafting) {
+                $('craft-item').disabled = true;
+                $('craft-item').textContent = 'FABRICANDO…';
+            }
+        }
+    }
+    async craft(recipe) {
+        if (this.crafting)
+            return;
+        this.crafting = true;
+        const account = this.profile.id, hero = this.craftHero, button = $('craft-item');
+        button.disabled = true;
+        button.classList.add('crafting');
+        button.setAttribute('aria-busy', 'true');
+        button.innerHTML = '<span class="craft-fill" aria-hidden="true"></span><span class="craft-label">FABRICANDO…</span>';
+        this.hub.scene.craftSound(false);
+        try {
+            const results = await Promise.allSettled([this.request('craft', { hero, recipe }), new Promise(resolve => setTimeout(resolve, 1500))]);
+            if (results[0].status === 'rejected')
+                throw results[0].reason;
+            if (this.profile?.id !== account)
+                return;
+            this.hub.scene.craftSound(true);
+            await this.hub.refresh(false);
+            this.hub.features.notice('Fabricação concluída. Poção entregue ao inventário de ' + HEROES[hero].name + '.');
+        }
+        catch (e) {
+            if (this.profile?.id === account)
+                this.hub.features.notice(e.message);
+        }
+        finally {
+            this.crafting = false;
+            if (this.profile?.id === account && this.hub.tab === 'professions')
+                this.professions();
         }
     }
     achievements() { const p = this.profile; $('achievements-content').innerHTML = ['account', 'hero'].map(scope => `<section><h2>${scope === 'account' ? 'Conquistas da conta' : `Conquistas de ${HEROES[this.hero].name}`}</h2>${Object.values(p.catalog.achievements).filter((d) => d.scope === scope).map((d) => { const a = p.achievements.find((a) => a.achievement === d.id && a.hero === (scope === 'account' ? 'account' : this.hero)); return `<article class="achievement-card ${a ? 'unlocked' : ''}"><span class="item-emblem">${a ? '✦' : '◇'}</span><div><h3>${esc(d.name)}</h3><p>${esc(d.description)}</p><small>${a ? `Obtida em ${new Date(a.created_at).toLocaleDateString('pt-BR')}` : 'Ainda não obtida'}${d.title ? ' · libera título para este herói' : ''}</small></div></article>`; }).join('')}</section>`).join(''); $('achievement-hero').innerHTML = this.heroOptions(); $('achievement-hero').onchange = () => { this.hub.scene.selectHero($('achievement-hero').value); this.achievements(); }; }

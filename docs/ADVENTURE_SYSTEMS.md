@@ -26,7 +26,7 @@ Adicionar uma receita: criar ingredientes/saída em ITEMS, adicionar RECIPES, cr
 
 ## Inventário e consumo
 
-Cada unidade é uma instância com ID próprio. Não há limite de mochila nem empilhamento físico nesta versão. Os atalhos mostram a quantidade total do consumível selecionado.
+Cada unidade mantém um ID persistente próprio para evitar duplicações. Materiais e consumíveis marcados com stackable:true no catálogo são agrupados em pilhas na mochila por herói, catálogo e qualidade. Equipamentos e receitas não empilham. Os atalhos mostram o total de unidades livres e continuam vinculados ao tipo mesmo quando esgotam; novas unidades repõem o mesmo atalho. Não há limite de mochila.
 
 `items.location` assume inventory, bank ou consumed. Itens consumidos permanecem como registros para manter referências históricas e impedir que um retry os recrie. Itens equipados e anúncios ativos não aparecem na mochila, mas permanecem no perfil para os slots e validação de atributos. Cancelar anúncio ou desequipar devolve o item à visualização da mochila. Abas separam compatíveis/universais de outras classes.
 
@@ -92,3 +92,16 @@ Testes em tests/adventure.test.mjs cobrem moeda, crafts concorrentes, receitas, 
 Publicar Worker/D1 primeiro, depois GitHub/Render. Build gera dist rastreado. Endpoint /health informa release 0.10.0. Nenhuma credencial de pagamento nova é necessária para gastar gemas já existentes; recarregar continua dependendo da configuração Pix documentada em PIX_SETUP.md.
 
 Limites atuais: inventários e catálogos completos no perfil (paginar antes de grandes volumes); unidades individuais aumentam volume; rotinas de retenção de recibos/consumidos precisam preservar idempotência; sem ledger de auditoria geral do baú; não há recuperação automática de salas após restart.
+
+
+## Atualização 0.10.1 — pilhas, lotes e feedback de fabricação
+
+Correção visual: áreas de grid explícitas para personagem/equipamentos, detalhes, atalhos, XP/atributos, seleção de heróis e inventário. Cada seção ocupa sua própria área; painel lateral pode crescer sem sobrepor a progressão.
+
+Materiais e poções empilham visualmente via `src/inventory.ts`; as unidades continuam individuais no banco para preservar IDs de drops e recibos existentes. Atalhos consomem uma unidade livre por uso e mantêm o vínculo após cada uso/cooldown.
+
+Mercado: vendedor escolhe 1–999 unidades disponíveis do mesmo herói, catálogo e qualidade e informa o PREÇO TOTAL DO LOTE. Comprador vê quantidade e total, e compra o lote inteiro. Não há compra parcial de um anúncio. `listing_items` reserva todas as unidades do lote; crafting, atalhos, baú e equipamento consultam essa reserva. Cancelar devolve todas as unidades à pilha. Compra transfere todas atomicamente e envia um único anexo de gold ao vendedor. Quantidade fica no histórico de vendas. Migração 0006 converte anúncios antigos em lotes de uma unidade sem alterar o item nem preço.
+
+Craft: botão mostra progresso por 1,5 segundo e permanece bloqueado até receber a confirmação. Som inicial e som de sucesso respeitam mute. Falhas exibem o erro e não tocam o som de sucesso. Tempo visual é feedback de interface; a autoridade de materiais e entrega continua no servidor. Baú do clã continua com transferências unitárias nesta versão.
+
+Testes específicos em `tests/stacks.test.mjs`: agrupamento, reservas de todo o lote, consumo repetido do atalho, cancelamento, transferência concorrente, entrega ao herói, correio e validação de quantidades.

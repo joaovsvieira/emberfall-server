@@ -37,3 +37,17 @@
 @media(min-width:1000px) and (max-width:1300px){.topbar{padding-left:16px!important;padding-right:16px!important;gap:12px!important}.hub-tabs#hub-navigation button{padding-left:7px;padding-right:7px;font-size:11px}.wordmark{font-size:13px!important;letter-spacing:2px!important}.profession-layout{grid-template-columns:180px minmax(210px,1fr) minmax(280px,1fr)}.profession-list,.recipe-list,.craft-detail{padding:18px}}
 
 #hub-navigation{min-width:0;overflow-x:auto;scrollbar-width:thin;justify-content:flex-start}.topbar{grid-template-columns:175px minmax(0,1fr) auto}.hub-tabs#hub-navigation button{flex-shrink:0;font-size:12px;padding-left:9px;padding-right:9px}.hero-details{grid-row:1/4}.hero-hotbar{grid-row:3}.combat-consumables{bottom:110px}.name-row{align-items:flex-start;gap:8px}.name-row strong{font-size:12px;letter-spacing:0;max-width:220px}.hub-notice#hub-status{padding:14px 22px}.recipe-list .primary-button{min-width:0;width:100%;letter-spacing:1px;gap:8px}
+
+/* Keep each hero section in a distinct grid area as the details panel grows. */
+#panel-heroes{grid-template-columns:minmax(0,1fr) 320px;grid-template-areas:"heading details" "stage details" "hotbar details" "progression progression" "roster roster" "inventory inventory";align-items:start;row-gap:20px}
+#panel-heroes>.roster-heading{grid-area:heading;min-width:0}
+#panel-heroes>.roster-stage{grid-area:stage;min-width:0}
+#panel-heroes>.hero-details{grid-area:details;min-width:0}
+#panel-heroes>.hero-hotbar{grid-area:hotbar;min-width:0;align-self:start}
+#panel-heroes>.hero-progression{grid-area:progression;min-width:0}
+#panel-heroes>.roster-bottom{grid-area:roster;min-width:0}
+#panel-heroes>.inventory{grid-area:inventory;min-width:0}
+@media(max-width:900px){#panel-heroes{grid-template-columns:minmax(0,1fr) 255px}}
+@media(max-width:650px){#panel-heroes{grid-template-columns:minmax(0,1fr);grid-template-areas:"heading" "stage" "hotbar" "details" "progression" "roster" "inventory"}}
+
+.stack-count{display:inline-block;padding:3px 7px;border:1px solid #d6b87577;background:#152e36;border-radius:3px;color:#f5dba1;font-size:13px}#craft-item.crafting{position:relative;overflow:hidden;isolation:isolate;opacity:1;cursor:wait;justify-content:center}#craft-item .craft-fill{position:absolute;inset:0;background:#90ad6b66;transform:scaleX(0);transform-origin:left;animation:craft-progress 1.5s linear forwards;z-index:-1}#craft-item .craft-label{position:relative;font-size:12px}@keyframes craft-progress{to{transform:scaleX(1)}}@media(prefers-reduced-motion:reduce){#craft-item .craft-fill{animation-timing-function:steps(3)}}

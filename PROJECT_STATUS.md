@@ -1,3 +1,5 @@
+Atualização 0.10.1: correção do layout Heróis, pilhas de materiais/poções, venda por quantidade (preço total do lote), progresso e som no craft. Migração 0006. Consulte a seção final de docs/ADVENTURE_SYSTEMS.md.
+
 # Emberfall — estado e continuidade
 
 Atualização 0.10: profissões, poções, correio, baús, conquistas, skins, salas públicas e vidas infinitas. Leia primeiro docs/ADVENTURE_SYSTEMS.md; suas regras substituem as divergentes abaixo.

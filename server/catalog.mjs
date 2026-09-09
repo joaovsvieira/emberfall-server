@@ -19,9 +19,9 @@ export function weekStart(now=Date.now()){const local=new Date(now-3*3600000);lo
 export const PROFESSIONS={alchemy:'Alquimia',leatherworking:'Couraria',blacksmithing:'Ferraria',jewelcrafting:'Joalheria',tailoring:'Alfaiataria',enchanting:'Encantamento'};
 export const RECIPES={healing_potion:{id:'healing_potion',profession:'alchemy',name:'Poção de cura menor',output:'healing_potion',materials:{forest_herb:2}}};
 Object.assign(ITEMS,{
- forest_herb:{id:'forest_herb',name:'Erva da aurora',slot:'material',kind:'material',hero:null,attributes:{}},
+ forest_herb:{id:'forest_herb',name:'Erva da aurora',slot:'material',kind:'material',stackable:true,hero:null,attributes:{}},
  recipe_healing_potion:{id:'recipe_healing_potion',name:'Receita: poção de cura menor',slot:'recipe',kind:'recipe',recipe:'healing_potion',hero:null,attributes:{}},
- healing_potion:{id:'healing_potion',name:'Poção de cura menor',slot:'consumable',kind:'consumable',hero:null,attributes:{},description:'Recupera 20% da vida máxima. Recarga compartilhada de 30 segundos.'}
+ healing_potion:{id:'healing_potion',name:'Poção de cura menor',slot:'consumable',kind:'consumable',stackable:true,hero:null,attributes:{},description:'Recupera 20% da vida máxima. Recarga compartilhada de 30 segundos.'}
 });
 export const POTION={healFraction:0.2,cooldownMs:30000};
 export const SKINS={kael_astral:{id:'kael_astral',hero:'kael',name:'Kael · Guardião Astral',price:10}};

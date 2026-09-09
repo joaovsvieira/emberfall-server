@@ -13,7 +13,7 @@ export async function adventureData(db,op,v){
  const now=Date.now(),receipt=crypto.randomUUID();
  const gate="EXISTS(SELECT 1 FROM economy_operations WHERE id=? AND applied=0)";
  const done=id=>stmt('UPDATE economy_operations SET applied=1 WHERE id=?',id);
- const owned="location='inventory' AND equipped=0 AND NOT EXISTS(SELECT 1 FROM listings WHERE item_id=items.id AND status='active')";
+ const owned="location='inventory' AND equipped=0 AND NOT EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=items.id AND l.status='active')";
  if(op==='profession-unlock'){
   if(!PROFESSIONS[v.profession])fail('Profissão inválida.');
   const r=await db.batch([

@@ -15,7 +15,7 @@ export async function gameData(db,op,v){
  const itemView=i=>({...i,definition:itemDefinition(i)});
  const page=Math.max(1,Math.min(10000,Number(v.page)||1)),offset=(page-1)*20;
  if(op==='game-profile'){
-  const [heroes,items,account]=await Promise.all([all('SELECT * FROM hero_progress WHERE account_id=?',v.id),all('SELECT i.*,EXISTS(SELECT 1 FROM listings l WHERE l.item_id=i.id AND l.status=?) AS listed FROM items i WHERE account_id=? AND location=\'inventory\' ORDER BY created_at DESC','active',v.id),one('SELECT gold,gems FROM accounts WHERE id=?',v.id)]);
+  const [heroes,items,account]=await Promise.all([all('SELECT * FROM hero_progress WHERE account_id=?',v.id),all('SELECT i.*,EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=i.id AND l.status=?) AS listed FROM items i WHERE account_id=? AND location=\'inventory\' ORDER BY created_at DESC','active',v.id),one('SELECT gold,gems FROM accounts WHERE id=?',v.id)]);
   const keys=await all('SELECT * FROM mythic_keys WHERE account_id=? AND week=?',v.id,weekStart());const clan=await one('SELECT clan_id,role FROM clan_members WHERE account_id=?',v.id);
   return {...await adventureProfile(db,v.id),gems:account?.gems??0,clan,gold:account?.gold??0,heroes:HERO_IDS.map(id=>{const xp=heroes.find(h=>h.hero===id)?.xp??0;const inventory=items.filter(i=>i.hero===id);return {id,skin:heroes.find(h=>h.hero===id)?.skin??'default',title:heroes.find(h=>h.hero===id)?.title??'',unlockedChapter:heroes.find(h=>h.hero===id)?.unlocked_chapter??1,keys:keys.filter(k=>k.hero===id),...progression(xp),attributes:attributes(id,xp,inventory.filter(i=>i.equipped)),inventory:inventory.map(itemView)};})};
  }
@@ -24,10 +24,10 @@ export async function gameData(db,op,v){
   const item=await one("SELECT * FROM items WHERE id=? AND account_id=? AND hero=? AND location='inventory'",v.item,v.id,v.hero),def=ITEMS[item?.catalog_id];
   if(!item||!def)fail('Item não encontrado.',404);
   if(v.equip){if(def.hero!==v.hero)fail('Este item pertence a outra classe.');const h=await one('SELECT xp FROM hero_progress WHERE account_id=? AND hero=?',v.id,v.hero);if(progression(h?.xp??0).level<def.requiredLevel)fail('Nível insuficiente.');}
-  if(await one("SELECT id FROM listings WHERE item_id=? AND status='active'",v.item))fail('Cancele a venda antes de equipar.');
+  if(await one("SELECT l.id FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=? AND l.status='active'",v.item))fail('Cancele a venda antes de equipar.');
   // Both checks live inside SQL too: listing/equipment requests may overlap.
-  const condition="EXISTS(SELECT 1 FROM items target WHERE target.id=? AND target.account_id=? AND target.hero=? AND target.location='inventory' AND NOT EXISTS(SELECT 1 FROM listings l WHERE l.item_id=target.id AND l.status='active'))";
-  await db.batch([stmt(`UPDATE items SET equipped=0 WHERE account_id=? AND hero=? AND slot=? AND ${condition}`,v.id,v.hero,item.slot,v.item,v.id,v.hero),stmt(`UPDATE items SET equipped=? WHERE id=? AND account_id=? AND hero=? AND location='inventory' AND NOT EXISTS(SELECT 1 FROM listings WHERE item_id=items.id AND status='active')`,v.equip?1:0,v.item,v.id,v.hero)]);
+  const condition="EXISTS(SELECT 1 FROM items target WHERE target.id=? AND target.account_id=? AND target.hero=? AND target.location='inventory' AND NOT EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=target.id AND l.status='active'))";
+  await db.batch([stmt(`UPDATE items SET equipped=0 WHERE account_id=? AND hero=? AND slot=? AND ${condition}`,v.id,v.hero,item.slot,v.item,v.id,v.hero),stmt(`UPDATE items SET equipped=? WHERE id=? AND account_id=? AND hero=? AND location='inventory' AND NOT EXISTS(SELECT 1 FROM listings l JOIN listing_items li ON li.listing_id=l.id WHERE li.item_id=items.id AND l.status='active')`,v.equip?1:0,v.item,v.id,v.hero)]);
   return {ok:true};
  }
  if(op==='rewards'||op==='settle'){
@@ -111,17 +111,24 @@ export async function gameData(db,op,v){
   return {listings:rows.slice(0,20).map(itemView),page,hasMore:rows.length>20};
  }
  if(op==='market-sell'){
-  if(!Number.isSafeInteger(v.price)||v.price<1||v.price>1000000000)fail('Informe um preço inteiro entre 1 e 1 bilhão.');
-  const result=await run('INSERT INTO listings(id,item_id,seller,price,created_at) SELECT ?,id,?,?,? FROM items WHERE id=? AND account_id=? AND equipped=0 AND location=\'inventory\'',crypto.randomUUID(),v.id,v.price,Date.now(),v.item,v.id);if(result.meta.changes===0)fail('Este item não está disponível para venda.',409);return {ok:true};
+  if(!Number.isSafeInteger(v.price)||v.price<1||v.price>1000000000)fail('Informe o preço total em gold, inteiro entre 1 e 1 bilhão.');
+  const quantity=v.quantity??1;if(!Number.isSafeInteger(quantity)||quantity<1||quantity>999)fail('Quantidade inválida (1–999).');
+  const item=await one("SELECT * FROM items WHERE id=? AND account_id=? AND location='inventory'",v.item,v.id);if(!item)fail('Item indisponível.',409);
+  if(quantity>1&&!ITEMS[item.catalog_id]?.stackable)fail('Este item não pode ser empilhado.');
+  const id=crypto.randomUUID(),free="account_id=? AND hero=? AND catalog_id=? AND quality=? AND equipped=0 AND location='inventory' AND NOT EXISTS(SELECT 1 FROM listing_items li JOIN listings l ON l.id=li.listing_id WHERE li.item_id=items.id AND l.status='active')",args=[v.id,item.hero,item.catalog_id,item.quality];
+  const result=await db.batch([
+   stmt(`INSERT INTO listings(id,item_id,seller,price,quantity,created_at) SELECT ?,id,?,?,?,? FROM items WHERE id=? AND ${free} AND (SELECT COUNT(*) FROM items WHERE ${free})>=?`,id,v.id,v.price,quantity,Date.now(),v.item,...args,...args,quantity),
+   stmt(`INSERT INTO listing_items(listing_id,item_id) SELECT ?,id FROM items WHERE ${free} AND EXISTS(SELECT 1 FROM listings WHERE id=?) ORDER BY (id=?) DESC,created_at,id LIMIT ?`,id,...args,id,v.item,quantity)
+  ]);if(!result[0].meta.changes)fail('Quantidade indisponível ou itens já reservados.',409);return {ok:true};
  }
  if(op==='market-cancel'){await run("UPDATE listings SET status='cancelled' WHERE id=? AND seller=? AND status='active'",v.listing,v.id);return {ok:true};}
  if(op==='market-buy'){
   validHero(v.hero);const id=crypto.randomUUID();
   const result=await db.batch([
-   stmt("INSERT INTO sales(id,listing_id,buyer,hero,created_at,item_id,seller,price) SELECT ?,l.id,?,?,?,l.item_id,l.seller,l.price FROM listings l JOIN items i ON i.id=l.item_id JOIN accounts a ON a.id=? WHERE l.id=? AND l.status='active' AND l.seller<>? AND i.account_id=l.seller AND i.equipped=0 AND i.location='inventory' AND a.gold>=l.price",id,v.id,v.hero,Date.now(),v.id,v.listing,v.id),
+   stmt("INSERT INTO sales(id,listing_id,buyer,hero,created_at,item_id,seller,price,quantity) SELECT ?,l.id,?,?,?,l.item_id,l.seller,l.price,l.quantity FROM listings l JOIN items i ON i.id=l.item_id JOIN accounts a ON a.id=? WHERE l.id=? AND l.status='active' AND l.seller<>? AND i.account_id=l.seller AND i.equipped=0 AND i.location='inventory' AND a.gold>=l.price AND (SELECT COUNT(*) FROM listing_items li JOIN items unit ON unit.id=li.item_id WHERE li.listing_id=l.id AND unit.account_id=l.seller AND unit.equipped=0 AND unit.location='inventory')=l.quantity",id,v.id,v.hero,Date.now(),v.id,v.listing,v.id),
    stmt('UPDATE accounts SET gold=gold-(SELECT price FROM sales WHERE id=?) WHERE id=(SELECT buyer FROM sales WHERE id=? AND applied=0)',id,id),
    stmt("INSERT OR IGNORE INTO mail(id,account_id,subject,body,gold,created_at) SELECT 'sale:'||id,seller,'Venda concluída','Seu item foi vendido no mercado. Colete o gold abaixo.',price,created_at FROM sales WHERE id=? AND applied=0",id),
-   stmt('UPDATE items SET account_id=?,hero=? WHERE id=(SELECT item_id FROM sales WHERE id=? AND applied=0)',v.id,v.hero,id),
+   stmt('UPDATE items SET account_id=?,hero=? WHERE id IN (SELECT li.item_id FROM listing_items li JOIN sales s ON s.listing_id=li.listing_id WHERE s.id=? AND s.applied=0)',v.id,v.hero,id),
    stmt("UPDATE listings SET status='sold' WHERE id=(SELECT listing_id FROM sales WHERE id=? AND applied=0)",id),
    stmt('UPDATE sales SET applied=1 WHERE id=? AND applied=0',id)
   ]);

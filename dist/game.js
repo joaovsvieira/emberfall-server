@@ -907,7 +907,7 @@ export class ForestScene extends Phaser.Scene {
         const x = ev.x ?? 0, y = ev.y ?? 0;
         playSound(ev.type);
         if (ev.type === 'downed' && this.net.active && this.world.mode !== 'pvp') {
-            this.toast(ev.playerId === this.net.id ? 'Você caiu. Seu companheiro pode reanimar você.' : 'Aproxime-se do companheiro caído por 3 segundos para reanimá-lo.');
+            this.toast(ev.playerId === this.net.id ? 'Você caiu. Renascerá no checkpoint em 3 segundos.' : 'Seu companheiro renascerá no checkpoint em 3 segundos.');
             return;
         }
         if (ev.type === 'revived') {

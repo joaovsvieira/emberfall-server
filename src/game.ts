@@ -210,7 +210,7 @@ export class ForestScene extends Phaser.Scene {
  }
  burst(x:number,y:number,color:number,count=12,range=70){for(let i=0;i<count;i++){const a=(i/count)*Math.PI*2+Math.random()*.4;const d=range*(.3+Math.random()*.7);const dot=this.add.circle(x,y,1+Math.random()*3,color,.9).setDepth(10);this.tweens.add({targets:dot,x:x+Math.cos(a)*d,y:y+Math.sin(a)*d+15,alpha:0,scale:0,duration:250+Math.random()*270,onComplete:()=>dot.destroy()});}}
  event(ev:GameEvent){if(this.net.active&&['zone','toast'].includes(ev.type)&&ev.playerId&&ev.playerId!==this.net.id)return;const x=ev.x??0,y=ev.y??0;playSound(ev.type);
-   if(ev.type==='downed'&&this.net.active&&this.world.mode!=='pvp'){this.toast(ev.playerId===this.net.id?'Você caiu. Seu companheiro pode reanimar você.':'Aproxime-se do companheiro caído por 3 segundos para reanimá-lo.');return;}
+   if(ev.type==='downed'&&this.net.active&&this.world.mode!=='pvp'){this.toast(ev.playerId===this.net.id?'Você caiu. Renascerá no checkpoint em 3 segundos.':'Seu companheiro renascerá no checkpoint em 3 segundos.');return;}
    if(ev.type==='revived'){this.toast('De volta à jornada!');this.burst(x,y,0xacffcf,20);return;}
    if(ev.type==='toast'){this.toast(ev.text!);return;}
    if(ev.type==='slash'){const g=this.add.graphics().setDepth(9);g.lineStyle(ev.value===3?8:4,ev.value===3?0xffe3a0:0xb9f7ef,.95);const angle=ev.dir===1?0:Math.PI;g.beginPath();g.arc(x,y,ev.value===3?112:91,angle-1.1,angle+1.1);g.strokePath();g.lineStyle(2,0xffffff,.8);g.beginPath();g.arc(x,y,ev.value===3?103:84,angle-1.05,angle+1.05);g.strokePath();this.tweens.add({targets:g,alpha:0,duration:180,onComplete:()=>g.destroy()});}
